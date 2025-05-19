@@ -6,9 +6,31 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Proyek Grafkom</title>
     <link rel="stylesheet" href="/src/style.css" />
+    <style>
+      #time-indicator {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        padding: 10px 20px;
+        border-radius: 5px;
+        font-weight: bold;
+        z-index: 1000;
+        color: white;
+        transition: background-color 1s;
+      }
+      .day {
+        background-color: rgba(135, 206, 235, 0.7);
+        border: 2px solid #4b86b4;
+      }
+      .night {
+        background-color: rgba(0, 0, 51, 0.7);
+        border: 2px solid #2d3561;
+      }
+    </style>
   </head>
   <body>
     <div id="app"></div>
+    <div id="time-indicator" class="day">Day</div>
     <script type="module" src="/src/main.js"></script>
   </body>
 </html>
