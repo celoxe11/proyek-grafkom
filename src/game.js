@@ -7,6 +7,32 @@ import { PlayerControls } from "./controls.js";
 import { ObjectPlacer } from "./objectPlacer.js";
 import { InteractionManager } from "./interactionManager.js"; // Import InteractionManager
 
+function showWarning(message) {
+  const warningContainer = document.getElementById('warning-container');
+  
+  const warning = document.createElement('div');
+  warning.textContent = message;
+  warning.style.cssText = `
+    background-color: rgba(255, 0, 0, 0.85);
+    color: white;
+    padding: 10px 20px;
+    margin-bottom: 10px;
+    border-radius: 6px;
+    font-weight: bold;
+    text-shadow: 1px 1px 3px black;
+    border: 1px solid white;
+    animation: fadeOut 1.5s ease-out 1.5s forwards;
+  `;
+
+  warningContainer.appendChild(warning);
+
+  // Remove after animation
+  setTimeout(() => {
+    warning.remove();
+  }, 3000);
+}
+
+
 export function initGame() {
     // Clear any existing content
     const appElement = document.querySelector('#app');
@@ -21,6 +47,22 @@ export function initGame() {
     const stats = new Stats();
     stats.showPanel(0);
     document.body.appendChild(stats.dom);
+
+    const warningContainer = document.createElement('div');
+    warningContainer.id = 'warning-container';
+    warningContainer.style.cssText = `
+      position: fixed;
+      top: 20%;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 2000;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      pointer-events: none;
+    `;
+    document.body.appendChild(warningContainer);
+
 
     const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 20000);
     camera.position.set(0, 0, 0);
@@ -258,27 +300,16 @@ export function initGame() {
     sidebar.innerHTML = sidebarContent;
     document.body.appendChild(sidebar);
 
-    // Remove all other sidebarContent declarations and assignments
-    // ...rest of existing code...
-
-    // Remove the top menu creation and related code
-    // Delete or comment out these sections:
-    // - const topMenu = document.createElement('div');
-    // - const menuButtons array
-    // - menuButtons.forEach loop
-    // - document.body.appendChild(topMenu);
-    // - Auto-hide menu event listener
-
-    // Instead, add an escape menu handler
     document.addEventListener('keydown', (event) => {
-      if (event.key === 'Escape') {
-        if (document.pointerLockElement) {
-          // If in game, show menu
-          document.exitPointerLock();
-          // Here you could show a menu overlay if desired
-        }
+      if (event.key === 'Tab') {
+        event.preventDefault(); // prevent focus shifting
+        const isVisible = sidebar.style.left === '0px';
+        sidebar.style.left = isVisible ? `-${sidebar.offsetWidth}px` : '0px';
+        sidebar.style.opacity = isVisible ? '0' : '1';
+        sidebar.style.visibility = isVisible ? 'hidden' : 'visible';
       }
     });
+
 
     // Update window resize handler
     window.addEventListener("resize", () => {
@@ -374,63 +405,6 @@ export function initGame() {
     // Create ObjectPlacer instance after scene setup
     const objectPlacer = new ObjectPlacer(scene, camera, cameraHolder, modelLoader);
     
-    // Update sidebar content to include object placement instructions
-    const updatedSidebarContent = `
-      <div style="
-        background: rgba(255, 255, 255, 0.1);
-        border-radius: 10px;
-        padding: 15px;
-        margin-bottom: 10px;
-        backdrop-filter: blur(5px);
-      ">
-        <h2 style="margin: 0 0 10px 0; font-size: 1.2em; color: #fff;">Game Stats</h2>
-        <div id="time-indicator" style="
-          font-size: 0.9em;
-          padding: 8px;
-          background: rgba(255, 255, 255, 0.1);
-          border-radius: 5px;
-          margin-bottom: 8px;
-        ">Time: Day</div>
-        <div id="position-indicator" style="
-          font-size: 0.9em;
-          padding: 8px;
-          background: rgba(255, 255, 255, 0.1);
-          border-radius: 5px;
-        ">Position: X: 0, Y: 0, Z: 0</div>
-      </div>
-
-      <div style="
-        background: rgba(255, 255, 255, 0.1);
-        border-radius: 10px;
-        padding: 15px;
-        backdrop-filter: blur(5px);
-      ">
-        <h2 style="margin: 0 0 10px 0; font-size: 1.2em; color: #fff;">Controls</h2>
-        <div style="font-size: 0.9em; line-height: 1.5">
-          <div>WASD - Move</div>
-          <div>MOUSE - Look around</div>
-          <div>SPACE - Jump</div>
-          <div>ESC - Menu</div>
-        </div>
-      </div>
-
-      <div style="
-        background: rgba(255, 255, 255, 0.1);
-        border-radius: 10px;
-        padding: 15px;
-        backdrop-filter: blur(5px);
-        margin-top: 10px;
-      ">
-        <h2 style="margin: 0 0 10px 0; font-size: 1.2em; color: #fff;">Object Placement</h2>
-        <div style="font-size: 0.9em; line-height: 1.5">
-          <div>1 - Place Merry-go-round</div>
-          <div>ENTER - Confirm placement</div>
-          <div>ESC - Cancel placement</div>
-        </div>
-      </div>
-    `;
-
-    sidebar.innerHTML = updatedSidebarContent;
     document.body.appendChild(sidebar);
     document.body.appendChild(mapPanel);
 
@@ -478,14 +452,16 @@ export function initGame() {
       const deltaTime = clock.getDelta();
 
       // Update player controls - pastikan update menerima deltaTime jika diperlukan
-      playerControls.update();
+      playerControls.update(deltaTime);
       modelLoader.updateBoundingBoxes();
       
+
       // Check player collisions
       const playerBox = new THREE.Box3().setFromCenterAndSize(
         cameraHolder.position.clone().add(new THREE.Vector3(0, 2.25, 0)),
         new THREE.Vector3(1, 4.5, 1)
       );
+
 
       const collisionResult = modelLoader.checkCollision(playerBox);
       if (collisionResult.collision) {
@@ -549,13 +525,6 @@ export function initGame() {
         case 'Enter':
           if (objectPlacer?.active) {
             objectPlacer.confirmPlacement();
-          }
-          break;
-        case 'Escape':
-          if (objectPlacer?.active) {
-            objectPlacer.cancelPlacement();
-          } else {
-            toggleMenu(!menuOverlay.style.display === 'flex');
           }
           break;
         case '1':
@@ -649,11 +618,15 @@ export function initGame() {
       }
     }
 
-    // Update escape key handler
-    document.addEventListener('keydown', (event) => {
-      if (event.key === 'Escape') {
-        const isMenuVisible = menuOverlay.style.display === 'flex';
-        toggleMenu(!isMenuVisible);
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') {
+      if (objectPlacer?.active) {
+        objectPlacer.cancelPlacement(); // Cancel placement first
+        return;
       }
-    });
+
+      const isMenuVisible = menuOverlay.style.display === 'flex';
+      toggleMenu(!isMenuVisible); // Toggle the menu
+    }
+  });
   }

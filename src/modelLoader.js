@@ -15,20 +15,17 @@ export class ModelLoader {
   // Load a model and add it to the scene
   loadModel(path, position = { x: 0, y: 0, z: 0 }, scale = { x: 1, y: 1, z: 1 }, rotation = { x: 0, y: 0, z: 0 }) {
     return new Promise((resolve, reject) => {
-      // Remove any leading slashes from path
       const cleanPath = path.replace(/^\/+/, '');
       
       this.loader.load(
         cleanPath,
         (gltf) => {
           const model = gltf.scene;
-          
-          // Set model transform
+
           model.position.set(position.x, position.y, position.z);
           model.scale.set(scale.x, scale.y, scale.z);
           model.rotation.set(rotation.x, rotation.y, rotation.z);
-          
-          // Enable shadows
+
           model.traverse((node) => {
             if (node.isMesh) {
               node.castShadow = true;
@@ -36,16 +33,18 @@ export class ModelLoader {
             }
           });
 
-          // Create single bounding box
           const boundingBox = new THREE.Box3().setFromObject(model);
-          
+          this.scene.add(model);
+          this.models.push(model);
+          this.boundingBoxes.push(boundingBox);
+
+          // Optional: Add helper if bounding boxes are visible
+          const helper = new THREE.Box3Helper(boundingBox, 0xffff00);
+          helper.visible = this.showBoundingBoxes;
+          this.boundingBoxHelpers.push(helper);
+          this.scene.add(helper);
+
           console.log(`Model loaded: ${cleanPath}`);
-          console.log('Model size:', {
-            x: boundingBox.max.x - boundingBox.min.x,
-            y: boundingBox.max.y - boundingBox.min.y,
-            z: boundingBox.max.z - boundingBox.min.z
-          });
-          
           resolve(model);
         },
         undefined,
@@ -53,6 +52,7 @@ export class ModelLoader {
       );
     });
   }
+
   
   // Toggle bounding box visibility
   toggleBoundingBoxes() {

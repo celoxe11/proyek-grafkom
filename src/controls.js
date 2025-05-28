@@ -9,6 +9,7 @@ export class PlayerControls {
     this.keysPressed = {};
     this.speed = 0.5;
     this.isLocked = false;
+    this.lastValidPosition = new THREE.Vector3();
 
     // Mouse movement
     this.euler = new THREE.Euler(0, 0, 0, 'YXZ');
@@ -17,6 +18,12 @@ export class PlayerControls {
     // Setup event listeners
     this.setupMouseControl();
     this.setupKeyboardControl();
+
+    this.velocity = new THREE.Vector3();
+    this.gravity = -9.8;
+    this.jumpSpeed = 8;
+    this.isGrounded = true;
+    this.lastPosition = cameraHolder.position.clone();
   }
 
   setupMouseControl() {
@@ -58,7 +65,13 @@ export class PlayerControls {
 
   setupKeyboardControl() {
     document.addEventListener('keydown', (event) => {
-      this.keysPressed[event.key.toLowerCase()] = true;
+      const key = event.key.toLowerCase();
+      this.keysPressed[key] = true;
+
+      if (key === ' ' && this.isGrounded) {
+        this.velocity.y = this.jumpSpeed;
+        this.isGrounded = false;
+      }
     });
 
     document.addEventListener('keyup', (event) => {
@@ -69,13 +82,11 @@ export class PlayerControls {
   update(deltaTime) {
     if (!this.isLocked) return;
 
-    // Movement direction
-    const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(this.cameraHolder.quaternion);
-    forward.y = 0;
-    forward.normalize();
+    this.lastPosition.copy(this.cameraHolder.position);
 
-    const right = new THREE.Vector3(1, 0, 0).applyQuaternion(this.cameraHolder.quaternion);
-    right.normalize();
+    // Movement direction
+    const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(this.cameraHolder.quaternion).setY(0).normalize();
+    const right = new THREE.Vector3(1, 0, 0).applyQuaternion(this.cameraHolder.quaternion).setY(0).normalize(); 
 
     // Movement
     if (this.keysPressed['w']) {
@@ -90,9 +101,19 @@ export class PlayerControls {
     if (this.keysPressed['d']) {
       this.cameraHolder.position.addScaledVector(right, this.speed);
     }
+
+    this.velocity.y += this.gravity * deltaTime;
+    this.cameraHolder.position.y += this.velocity.y * deltaTime;
+
+    // Simple ground collision (example: y = 7 is ground level)
+    if (this.cameraHolder.position.y <= 7) {
+      this.cameraHolder.position.y = 7;
+      this.velocity.y = 0;
+      this.isGrounded = true;
+    }
   }
 
   rollbackPosition() {
-    // Implement if needed for collision
+    this.cameraHolder.position.copy(this.lastPosition);
   }
 }

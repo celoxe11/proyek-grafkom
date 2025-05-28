@@ -167,9 +167,19 @@ export class ObjectPlacer {
       // Add collision
       if (this.modelLoader) {
         this.modelLoader.models.push(finalModel);
+
         const boundingBox = new THREE.Box3().setFromObject(finalModel);
+        boundingBox.expandByScalar(0.5); // Add margin to avoid overlap
         this.modelLoader.boundingBoxes.push(boundingBox);
+
+        // Optional: add helper for debugging
+        if (this.modelLoader.showBoundingBoxes) {
+          const helper = new THREE.Box3Helper(boundingBox, 0xffff00);
+          this.modelLoader.scene.add(helper);
+          this.modelLoader.boundingBoxHelpers.push(helper);
+        }
       }
+
 
       // Reset placement mode
       this.previewModel.visible = false;
