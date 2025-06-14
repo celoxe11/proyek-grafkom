@@ -5,7 +5,8 @@ import { CelestialSystem } from "./celestial.js";
 import { Terrain } from "./terrain.js";
 import { PlayerControls } from "./controls.js";
 import { ObjectPlacer } from "./objectPlacer.js";
-import { InteractionManager } from "./interactionManager.js"; // Import InteractionManager
+import { InteractionManager } from "./interactionManager.js"; 
+import { TutorialManager } from './tutorialManager.js';
 
 function showWarning(message) {
   const warningContainer = document.getElementById('warning-container');
@@ -34,6 +35,14 @@ function showWarning(message) {
 
 
 export function initGame() {
+
+  const tutorial = new TutorialManager();
+  tutorial.addStep("Tekan <Tab> untuk membuka sidebar kontrol", (e) => e.key === 'Tab');
+  tutorial.addStep("Tekan <1> untuk memulai penempatan benda", (e) => e.key === '1');
+  tutorial.addStep("Tekan <Enter> untuk meletakkan benda", (e) => e.key === 'Enter');
+  tutorial.addStep("Tekan <E> untuk berinteraksi dengan objek", (e) => e.key.toLowerCase() === 'e');
+
+  tutorial.start();
     // Clear any existing content
     const appElement = document.querySelector('#app');
     if (appElement) {
