@@ -123,23 +123,138 @@ export class ObjectPlacer {
     this.active = false;
   }
 
-  confirmPlacement() {
-    if (!this.active || !this.previewModel) return;
+  /**
+   * Checks if the preview object collides with any existing objects or the ticket booth
+   * @param {THREE.Box3} ticketBoothBoundingBox - The bounding box of the ticket booth
+   * @returns {boolean} - True if there is a collision, false otherwise
+   */
+  checkPlacementCollision(ticketBoothBoundingBox) {
+    if (!this.previewModel) return false;
+    
+    // Create a bounding box for the preview object
+    const previewBox = new THREE.Box3().setFromObject(this.previewModel);
+    
+    // Check collision with ticket booth
+    if (ticketBoothBoundingBox && previewBox.intersectsBox(ticketBoothBoundingBox)) {
+      return true;
+    }
+    
+    // Check collision with other objects in the scene
+    let collisionDetected = false;
+    
+    this.scene.traverse((object) => {
+      // Skip checking against the preview mesh itself or non-mesh objects
+      if (object === this.previewModel || !object.isMesh || object === this.debugBox) return;
+      
+      // Skip objects without a userData.type (like terrain, skybox, etc.)
+      if (!object.userData.type) return;
+      
+      // Create a bounding box for the current object
+      const objectBox = new THREE.Box3().setFromObject(object);
+      
+      // Check for intersection
+      if (previewBox.intersectsBox(objectBox)) {
+        collisionDetected = true;
+      }
+    });
+    
+    return collisionDetected;
+  }
 
-    try {
+  /**
+   * Updates the preview mesh material based on collision status
+   * @param {boolean} isColliding - Whether the preview mesh is colliding with something
+   */
+  updatePreviewMaterial(isColliding) {
+    if (!this.previewModel) return;
+    
+    // Store original materials if not already stored
+    if (!this.originalMaterials && isColliding) {
+      this.originalMaterials = [];
+      this.previewModel.traverse((child) => {
+        if (child.isMesh && child.material) {
+          this.originalMaterials.push({
+            mesh: child,
+            material: child.material.clone()
+          });
+        }
+      });
+    }
+    
+    // Apply red tint when colliding, restore original materials otherwise
+    this.previewModel.traverse((child) => {
+      if (child.isMesh && child.material) {
+        if (isColliding) {
+          // Apply red tint to material
+          child.material.color.setRGB(1.0, 0.3, 0.3);
+          child.material.emissive = new THREE.Color(0.3, 0, 0);
+          child.material.transparent = true;
+          child.material.opacity = 0.7;
+        } else if (this.originalMaterials) {
+          // Restore original material colors
+          const originalData = this.originalMaterials.find(item => item.mesh === child);
+          if (originalData) {
+            child.material.color.copy(originalData.material.color);
+            child.material.emissive.copy(originalData.material.emissive);
+            child.material.transparent = true;
+            child.material.opacity = 0.7; // Keep it semi-transparent for placement preview
+          }
+        }
+      }
+    });
+    
+    // Update collision state
+    this.isPlacementColliding = isColliding;
+  }
+
+  /**
+   * Confirms the placement of the object if there's no collision
+   */
+  confirmPlacement() {
+    if (this.active && this.previewModel) {
+      // Check for collisions before confirming placement
+      if (this.isPlacementColliding) {
+        console.log("Cannot place object due to collision");
+        
+        // Show warning to the user
+        const warningContainer = document.getElementById("warning-container");
+        if (warningContainer) {
+          const warning = document.createElement("div");
+          warning.textContent = "Cannot place object due to collision!";
+          warning.style.cssText = `
+            background-color: rgba(255, 0, 0, 0.85);
+            color: white;
+            padding: 10px 20px;
+            margin-bottom: 10px;
+            border-radius: 6px;
+            font-weight: bold;
+            text-shadow: 1px 1px 3px black;
+            border: 1px solid white;
+            animation: fadeOut 1.5s ease-out 1.5s forwards;
+          `;
+          warningContainer.appendChild(warning);
+          
+          // Remove after animation
+          setTimeout(() => {
+            warning.remove();
+          }, 3000);
+        }
+        
+        return;
+      }
+      
+      // Original placement logic
       const finalModel = this.previewModel.clone();
       
-      // Make model solid
+      // Restore materials to normal (not semi-transparent)
       finalModel.traverse((child) => {
-        if (child.isMesh) {
+        if (child.isMesh && child.material) {
           child.material = child.material.clone();
           child.material.transparent = false;
           child.material.opacity = 1.0;
-          child.castShadow = true;
-          child.receiveShadow = true;
         }
       });
-
+      
       // Generate unique ID for this instance
       const uniqueId = 'merry-go-round-' + Date.now();
       finalModel.userData = {
@@ -186,7 +301,7 @@ export class ObjectPlacer {
       this.labelDiv.style.display = 'none';
       this.active = false;
 
-    } catch (error) {
+    } else {
       console.error('Error placing model:', error);
     }
   }

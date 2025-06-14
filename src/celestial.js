@@ -30,6 +30,14 @@ export class CelestialSystem {
     // Initialize twinkling variables
     this.originalStarSizes = this.starsSizes.slice();
     this.starsTwinkleTime = 0;
+    
+    // Add clock properties
+    this.gameHour = 6; // Start at 6 AM
+    this.gameMinute = 0;
+    this.timeMultiplier = 5; // 1 real second = 5 game minutes
+    this.minuteStep = 10; // Minutes will increment by 10
+    this.minuteAccumulator = 0; // Track partial minutes before updating display
+    this.lastUpdate = Date.now();
   }
   
   createSun() {
@@ -199,21 +207,65 @@ export class CelestialSystem {
     this.stars.geometry.attributes.size.needsUpdate = true;
   }
   
+  // Helper method to format time string
+  formatTimeString(hour, minute) {
+    const h = hour % 12 === 0 ? 12 : hour % 12;
+    // Round minutes to nearest 10
+    const roundedMinute = Math.floor(minute / this.minuteStep) * this.minuteStep;
+    const m = roundedMinute.toString().padStart(2, '0');
+    const period = hour < 12 ? 'AM' : 'PM';
+    return {
+      timeString: `${h}:${m}`,
+      period: period,
+      hour: hour,
+      minute: roundedMinute // Use the rounded minute value
+    };
+  }
+  
   update(camera, directionalLight) {
     const currentTime = Date.now();
-    const elapsedTime = (currentTime - this.cycleStartTime) % this.DAY_NIGHT_DURATION;
+    const deltaMs = currentTime - this.lastUpdate;
+    this.lastUpdate = currentTime;
     
-    // Calculate cycle progress (0 to 1)
-    const dayProgress = (elapsedTime % this.CYCLE_DURATION) / this.CYCLE_DURATION;
+    // Update game time based on delta
+    const gameMinutesElapsed = (deltaMs / 1000) * this.timeMultiplier;
+    this.minuteAccumulator += gameMinutesElapsed;
     
-    // Determine if it's day or night
-    const isDay = elapsedTime < this.CYCLE_DURATION;
+    // Only update displayed minutes when we've accumulated enough for a step
+    if (this.minuteAccumulator >= this.minuteStep) {
+      // Calculate how many steps to advance
+      const stepsToAdvance = Math.floor(this.minuteAccumulator / this.minuteStep);
+      this.gameMinute += stepsToAdvance * this.minuteStep;
+      this.minuteAccumulator %= this.minuteStep; // Keep remainder for next update
+      
+      // Handle minute overflow
+      if (this.gameMinute >= 60) {
+        this.gameHour += Math.floor(this.gameMinute / 60);
+        this.gameMinute %= 60;
+        
+        // Handle hour overflow
+        if (this.gameHour >= 24) {
+          this.gameHour %= 24;
+        }
+      }
+    }
+    
+    // Calculate day cycle progress based on current game time
+    // Use precise time (including accumulator) for smooth celestial movement
+    const preciseMinutes = this.gameMinute + this.minuteAccumulator;
+    const dayProgress = (this.gameHour * 60 + preciseMinutes) / (24 * 60);
+    
+    // Determine if it's day or night (day: 6am to 6pm)
+    const isDaytime = this.gameHour >= 6 && this.gameHour < 18;
+    
+    // Get time data for UI - this will show time rounded to nearest 10 minutes
+    const timeData = this.formatTimeString(this.gameHour, this.gameMinute);
+    timeData.isDaytime = isDaytime;
     
     // Update status indicator
     const timeIndicator = document.getElementById('time-indicator');
     if (timeIndicator) {
-      timeIndicator.textContent = isDay ? 'Day' : 'Night';
-      timeIndicator.className = isDay ? 'day' : 'night';
+      timeIndicator.textContent = `Time: ${timeData.timeString} ${timeData.period} (${isDaytime ? 'Day' : 'Night'})`;
     }
     
     // Make celestial bodies face the camera
@@ -231,14 +283,78 @@ export class CelestialSystem {
       this.moon.lookAt(moonLookAtPos);
     }
     
-    // Update positions and visibility
-    if (isDay) {
-      this.updateDaytime(dayProgress, directionalLight);
+    // Calculate sun/moon position based on time
+    // Full day-night cycle
+    const cycleAngle = (dayProgress * Math.PI * 2) - Math.PI/2; // -π/2 so it starts from the east
+    
+    // Height follows a sine curve over the day
+    const height = Math.sin(cycleAngle) * this.celestialHeight;
+    
+    // Horizontal position follows a cosine curve
+    const horizontalPos = Math.cos(cycleAngle) * this.celestialDistance;
+    
+    // Update sun and moon
+    if (height > 0) {
+      // Sun is above horizon
+      this.sun.position.set(horizontalPos, height, 0);
+      this.sun.visible = true;
+      this.moon.visible = false;
+      
+      // Sun lighting (brighter at noon, dimmer at sunrise/sunset)
+      const sunHeight = height / this.celestialHeight; // 0 to 1
+      directionalLight.intensity = 0.5 + sunHeight * 0.8;
+      directionalLight.color.set(0xffffff);
+      
+      // Sky color transitions
+      if (sunHeight < 0.2) {
+        // Sunrise gradient
+        const t = sunHeight / 0.2;
+        const skyColor = new THREE.Color().copy(this.SUNRISE_COLOR).lerp(this.DAY_COLOR, t);
+        this.scene.background = skyColor;
+        this.scene.fog = this.dayFog;
+        this.dayFog.color.copy(skyColor);
+      } else {
+        // Day sky
+        this.scene.background = this.DAY_COLOR;
+        this.scene.fog = this.dayFog;
+        this.dayFog.color.copy(this.DAY_COLOR);
+      }
+      
+      // Hide stars during the day
+      const starMaterial = this.stars.material;
+      starMaterial.opacity = Math.max(0, starMaterial.opacity - 0.02);
+      
     } else {
-      this.updateNighttime(dayProgress, directionalLight);
+      // Moon is above horizon
+      this.moon.position.set(-horizontalPos, -height, 0); // opposite position to sun
+      this.moon.visible = true;
+      this.sun.visible = false;
+      
+      // Moon lighting (soft blue light)
+      directionalLight.intensity = 0.3;
+      directionalLight.color.set(0xaaaaff);
+      
+      // Night sky
+      this.scene.background = this.NIGHT_COLOR;
+      this.scene.fog = this.nightFog;
+      this.nightFog.color.copy(this.NIGHT_COLOR);
+      
+      // Show stars at night
+      const starMaterial = this.stars.material;
+      starMaterial.opacity = Math.min(1.0, starMaterial.opacity + 0.02);
+      
+      // Update star twinkling
+      this.updateStarTwinkle();
     }
     
-    return isDay;
+    // Update directional light to follow sun/moon position
+    if (this.sun.visible) {
+      directionalLight.position.copy(this.sun.position).normalize();
+    } else {
+      directionalLight.position.copy(this.moon.position).normalize();
+    }
+    
+    return timeData;
   }
   
   updateDaytime(dayProgress, directionalLight) {
