@@ -15,60 +15,44 @@ export class ModelLoader {
   // Load a model and add it to the scene
   loadModel(path, position = { x: 0, y: 0, z: 0 }, scale = { x: 1, y: 1, z: 1 }, rotation = { x: 0, y: 0, z: 0 }) {
     return new Promise((resolve, reject) => {
+      const cleanPath = path.replace(/^\/+/, '');
+      
       this.loader.load(
-        path,
+        cleanPath,
         (gltf) => {
-          // Set model position, scale, and rotation
-          gltf.scene.position.set(position.x, position.y, position.z);
-          gltf.scene.scale.set(scale.x, scale.y, scale.z);
-          gltf.scene.rotation.set(rotation.x, rotation.y, rotation.z);
-          
-          // Enable shadows on all meshes in the model
-          gltf.scene.traverse((node) => {
+          const model = gltf.scene;
+
+          model.position.set(position.x, position.y, position.z);
+          model.scale.set(scale.x, scale.y, scale.z);
+          model.rotation.set(rotation.x, rotation.y, rotation.z);
+
+          model.traverse((node) => {
             if (node.isMesh) {
               node.castShadow = true;
               node.receiveShadow = true;
             }
           });
-          
-          // Add model to scene and track it
-          this.scene.add(gltf.scene);
-          this.models.push(gltf.scene);
-          
-          // Create a bounding box for collision detection
-          const boundingBox = new THREE.Box3().setFromObject(gltf.scene);
-          
-          // Ensure the bounding box has some minimum size (prevents ultra-thin boxes)
-          const size = new THREE.Vector3();
-          boundingBox.getSize(size);
-          if (size.x < 0.1) size.x = 0.1;
-          if (size.y < 0.1) size.y = 0.1;
-          if (size.z < 0.1) size.z = 0.1;
-          
-          // Expand the bounding box slightly to ensure better collision detection
-          boundingBox.expandByVector(new THREE.Vector3(0.5, 0.5, 0.5));
-          
+
+          const boundingBox = new THREE.Box3().setFromObject(model);
+          this.scene.add(model);
+          this.models.push(model);
           this.boundingBoxes.push(boundingBox);
-          
-          // Create a visual bounding box helper
-          const helper = new THREE.Box3Helper(boundingBox, 0xff0000);
+
+          // Optional: Add helper if bounding boxes are visible
+          const helper = new THREE.Box3Helper(boundingBox, 0xffff00);
           helper.visible = this.showBoundingBoxes;
-          this.scene.add(helper);
           this.boundingBoxHelpers.push(helper);
-          
-          console.log(`Model loaded: ${path}`);
-          resolve(gltf.scene);
+          this.scene.add(helper);
+
+          console.log(`Model loaded: ${cleanPath}`);
+          resolve(model);
         },
-        (xhr) => {
-          console.log(`${path}: ${((xhr.loaded / xhr.total) * 100).toFixed(2)}% loaded`);
-        },
-        (error) => {
-          console.error(`Error loading model ${path}:`, error);
-          reject(error);
-        }
+        undefined,
+        reject
       );
     });
   }
+
   
   // Toggle bounding box visibility
   toggleBoundingBoxes() {
