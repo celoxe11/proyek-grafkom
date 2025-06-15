@@ -17,6 +17,7 @@ import {
   getMascotDialog,
   mascotObject
 } from './ticketBooth.js';
+import { loadHedgeFences } from './hedgeFences.js';
 
 function showWarning(message) {
   const warningContainer = document.getElementById("warning-container");
@@ -382,6 +383,25 @@ export function initGame() {
       
       // Enable mascot direction following by default
       setMascotFollowing(true, cameraHolder);
+    });
+    
+    // Load hedge fences around the park perimeter with adjusted parameters
+    loadHedgeFences(scene, {
+      centerPoint: new THREE.Vector3(0, 0, 0), // Center of the park
+      distance: 100, // 100 units from center to edge (total park size is 200x200)
+      fenceHeight: 10, // Height of the fences
+      spacing: 15, // Increased spacing between fence segments from 10 to 15
+      modelPath: './simple_brick_fence.glb' // Specify the model path
+    }).then(hedgeFences => {
+      console.log(`Loaded ${hedgeFences.length} hedge fence segments`);
+      
+      // Add hedge fences to collision objects - using built-in handling
+      hedgeFences.forEach(fence => {
+        // We don't need to register these with the model loader,
+        // they will work through the scene traversal
+      });
+    }).catch(error => {
+      console.error('Failed to load hedge fences:', error);
     });
   }
 
