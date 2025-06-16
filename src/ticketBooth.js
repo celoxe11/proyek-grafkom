@@ -115,7 +115,6 @@ function loadTicketBooth(scene, options = {}) {
                         
                         // Add to scene
                         scene.add(mascot);
-                        console.log('Mascot loaded and positioned inside ticket booth', mascot);
                         
                         // Add a spot light to highlight the mascot
                         const spotLight = new THREE.SpotLight(0xffffff, 2);
@@ -137,7 +136,7 @@ function loadTicketBooth(scene, options = {}) {
             },
             // Progress callback
             (xhr) => {
-                console.log(`Loading ticket booth: ${(xhr.loaded / xhr.total) * 100}% loaded`);
+                // Removed console.log for loading progress
             },
             // Error callback
             (error) => {

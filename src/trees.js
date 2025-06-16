@@ -45,13 +45,10 @@ export function loadTrees(scene, options = {}) {
                 
                 // Store tree objects globally
                 allTreeObjects = [...treeObjects];
-                
-                console.log(`Created ${treeObjects.length} trees from model`);
                 resolve(treeObjects);
             },
-            // Progress callback
             (xhr) => {
-                console.log(`Loading tree model: ${(xhr.loaded / xhr.total * 100).toFixed(2)}%`);
+                
             },
             // Error callback
             (error) => {
@@ -63,8 +60,6 @@ export function loadTrees(scene, options = {}) {
                 
                 // Store tree objects globally
                 allTreeObjects = [...treeObjects];
-                
-                console.log(`Created ${treeObjects.length} simple trees`);
                 resolve(treeObjects);
             }
         );

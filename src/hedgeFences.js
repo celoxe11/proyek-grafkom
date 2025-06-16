@@ -95,7 +95,6 @@ export function loadHedgeFences(scene, options = {}) {
         loader.load(
             modelPath,
             (gltf) => {
-                console.log("Loaded hedge fence model successfully");
                 const hedgeModel = gltf.scene;
                 
                 // Create all fence segments using the loaded model
@@ -104,17 +103,15 @@ export function loadHedgeFences(scene, options = {}) {
                 // Store fence objects globally for raycasting
                 allFenceObjects = [...fenceObjects];
                 
-                console.log(`Created ${fenceObjects.length} hedge fence segments from model`);
                 resolve(fenceObjects);
             },
             // Progress callback
             (xhr) => {
-                console.log(`Loading hedge fence model: ${(xhr.loaded / xhr.total * 100).toFixed(2)}%`);
+                // Removed console.log for loading progress
             },
             // Error callback
             (error) => {
                 console.error("Error loading hedge fence model:", error);
-                console.log("Falling back to simple box hedges");
                 
                 // Create simple box hedges as fallback
                 createSimpleHedges(scene, fencePositions, spacing, fenceHeight, 1, fenceObjects);
@@ -122,7 +119,6 @@ export function loadHedgeFences(scene, options = {}) {
                 // Store fence objects globally for raycasting
                 allFenceObjects = [...fenceObjects];
                 
-                console.log(`Created ${fenceObjects.length} simple hedge fence segments`);
                 resolve(fenceObjects);
             }
         );

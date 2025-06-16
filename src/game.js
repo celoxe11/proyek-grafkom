@@ -19,6 +19,7 @@ import {
 } from './ticketBooth.js';
 import { loadHedgeFences, checkFenceCollisionMultiDirection } from './hedgeFences.js';
 import { loadTrees } from './trees.js';
+import { loadNpcModel } from "./npc.js";
 
 function showWarning(message) {
   const warningContainer = document.getElementById("warning-container");
@@ -151,8 +152,8 @@ export function initGame() {
 
   // Create canvas for map
   const mapCanvas = document.createElement("canvas");
-  mapCanvas.width = 184;
-  mapCanvas.height = 184;
+  mapCanvas.width = 200;
+  mapCanvas.height = 200;
   mapCanvas.style.cssText = `
       background: #1a1a1a;
       border-radius: 4px;
@@ -418,6 +419,12 @@ export function initGame() {
     }).catch(error => {
       console.error('Failed to load trees:', error);
     });
+
+    loadNpcModel(scene, {
+      npcModel: Math.floor(Math.random() * 2),
+      position: new THREE.Vector3((Math.random() * (10 - 4) + 4), 0, 180),
+      rotation: new THREE.Euler(0, Math.PI, 0)
+    })
   }
 
   loadModels();
@@ -528,8 +535,9 @@ export function initGame() {
   clockDisplay.id = "clock-display";
   clockDisplay.style.cssText = `
       position: fixed;
-      top: 0px; // Position it below the map
+      top: 20px; // Position it below the map
       right: 20px;
+      left: 20px;
       width: 200px;
       background: rgba(0, 0, 0, 0.7);
       border-radius: 8px;
@@ -668,7 +676,7 @@ export function initGame() {
 
     // Update celestial system and get time data
     const timeData = celestialSystem.update(camera, directionalLight);
-    
+
     // Update clock display
     if (timeText && periodText) {
       timeText.textContent = timeData.timeString;

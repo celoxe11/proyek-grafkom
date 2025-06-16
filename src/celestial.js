@@ -32,7 +32,7 @@ export class CelestialSystem {
     this.starsTwinkleTime = 0;
     
     // Add clock properties
-    this.gameHour = 6; // Start at 6 AM
+    this.gameHour = 7; // Start at 6 AM
     this.gameMinute = 0;
     this.timeMultiplier = 5; // 1 real second = 5 game minutes
     this.minuteStep = 10; // Minutes will increment by 10
@@ -97,28 +97,32 @@ export class CelestialSystem {
   createMoon() {
     // Create Moon as a flat circle
     const moonGeometry = new THREE.CircleGeometry(70, 32);
+    const sunTextureLoader = new THREE.TextureLoader();
+    const moonTexture = sunTextureLoader.load('/wajah_bulan.jpg');
     const moonMaterial = new THREE.MeshBasicMaterial({
-      color: 0xDDDDFF,
+      map: moonTexture,
+      color: 0xF0F0FF, // Brighter, whiter color
       fog: false,
       side: THREE.DoubleSide
     });
     this.moon = new THREE.Mesh(moonGeometry, moonMaterial);
     
-    // Add a subtle glow to the moon
+    // Add a stronger white glow to the moon
     const moonGlowGeometry = new THREE.RingGeometry(70, 85, 32);
     const moonGlowMaterial = new THREE.MeshBasicMaterial({
-      color: 0xaaaaff,
+      color: 0xFFFFFF, // Pure white glow
       transparent: true,
-      opacity: 0.4,
+      opacity: 0.5, // Slightly higher opacity
       side: THREE.DoubleSide,
-      fog: false
+      fog: false,
+      blending: THREE.AdditiveBlending // Add additive blending for brighter glow
     });
     const moonGlow = new THREE.Mesh(moonGlowGeometry, moonGlowMaterial);
     moonGlow.position.z = -0.1;
     this.moon.add(moonGlow);
     
-    // Moon light source
-    this.moonLight = new THREE.PointLight(0xaaaaff, 1, 10000);
+    // Moon light source - brighter, whiter light
+    this.moonLight = new THREE.PointLight(0xF8F8FF, 1.2, 10000);
     this.moon.add(this.moonLight);
     
     // Set initial position
