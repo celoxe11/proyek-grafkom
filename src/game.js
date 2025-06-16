@@ -6,20 +6,22 @@ import { Terrain } from "./terrain.js";
 import { PlayerControls } from "./controls.js";
 import { ObjectPlacer } from "./objectPlacer.js";
 import { InteractionManager } from "./interactionManager.js"; // Import InteractionManager
-import { 
-  loadTicketBooth, 
-  updateMascotPosition, 
-  setMascotFollowing, 
-  returnMascotToBase, 
+import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+import {
+  loadTicketBooth,
+  updateMascotPosition,
+  setMascotFollowing,
+  returnMascotToBase,
   checkTicketBoothCollision,
   ticketBoothBoundingBox,
   isLookingAtMascot,
   getMascotDialog,
-  mascotObject
-} from './ticketBooth.js';
-import { loadHedgeFences, checkFenceCollisionMultiDirection } from './hedgeFences.js';
-import { loadTrees } from './trees.js';
-import { loadNpcModel } from "./npc.js";
+  mascotObject,
+} from "./ticketBooth.js";
+import { loadHedgeFences, checkFenceCollisionMultiDirection } from "./hedgeFences.js";
+import { loadTrees } from "./trees.js";
+import { loadNpcModel, moveNpcToTicketBooth } from "./npc.js";
+import { loadPicnicTable, loadPicnicTableGroup, checkPicnicTableCollision } from "./picnicTables.js";
 
 function showWarning(message) {
   const warningContainer = document.getElementById("warning-container");
@@ -352,17 +354,27 @@ export function initGame() {
 
   scene.add(new THREE.HemisphereLight(0xffffff, 0x444444, 1.0)); // Back to original lighting
 
-  const directionalLight = new THREE.DirectionalLight(0xffffff, 1); // Back to white light
+  // Update the directional light settings for better shadows
+  const directionalLight = new THREE.DirectionalLight(0xffffff, 1); 
   directionalLight.position.set(20, 100, 10);
   directionalLight.castShadow = true;
-  directionalLight.shadow.mapSize.width = 2048;
-  directionalLight.shadow.mapSize.height = 2048;
+
+  // Improve shadow map settings
+  directionalLight.shadow.mapSize.width = 4096;  // Increased for better quality
+  directionalLight.shadow.mapSize.height = 4096; // Increased for better quality
   directionalLight.shadow.camera.near = 0.5;
   directionalLight.shadow.camera.far = 500;
-  directionalLight.shadow.camera.left = -100;
-  directionalLight.shadow.camera.right = 100;
-  directionalLight.shadow.camera.top = 100;
-  directionalLight.shadow.camera.bottom = -100;
+  directionalLight.shadow.camera.left = -150;    // Wider frustum for shadows
+  directionalLight.shadow.camera.right = 150;    // Wider frustum for shadows
+  directionalLight.shadow.camera.top = 150;      // Wider frustum for shadows
+  directionalLight.shadow.camera.bottom = -150;  // Wider frustum for shadows
+  directionalLight.shadow.bias = -0.0005;        // Reduce shadow acne
+  directionalLight.shadow.normalBias = 0.02;     // Better shadow edge quality
+
+  // Add a helper to visualize the shadow camera (for debugging, can be commented out in production)
+  // const helper = new THREE.CameraHelper(directionalLight.shadow.camera);
+  // scene.add(helper);
+
   scene.add(directionalLight);
 
   // Remove model-related variables
@@ -379,32 +391,34 @@ export function initGame() {
     loadTicketBooth(scene, {
       position: new THREE.Vector3(35, 0, 137.9),
       scale: 5,
-      rotation: new THREE.Euler(0, Math.PI, 0)
-    }).then(ticketBoothObject => {
-      console.log('Ticket booth loaded!', ticketBoothObject);
-      
+      rotation: new THREE.Euler(0, Math.PI, 0),
+    }).then((ticketBoothObject) => {
+      console.log("Ticket booth loaded!", ticketBoothObject);
+
       // Enable mascot direction following by default
       setMascotFollowing(true, cameraHolder);
     });
-    
+
     // Load hedge fences around the park perimeter with adjusted parameters
     loadHedgeFences(scene, {
       centerPoint: new THREE.Vector3(0, 0, 0), // Center of the park
       distance: 150, // 100 units from center to edge (total park size is 200x200)
       fenceHeight: 10, // Height of the fences
       spacing: 15, // Increased spacing between fence segments from 10 to 15
-      modelPath: './simple_brick_fence.glb' // Specify the model path
-    }).then(hedgeFences => {
-      console.log(`Loaded ${hedgeFences.length} hedge fence segments`);
-      
-      // Add hedge fences to collision objects - using built-in handling
-      hedgeFences.forEach(fence => {
-        // We don't need to register these with the model loader,
-        // they will work through the scene traversal
+      modelPath: "./simple_brick_fence.glb", // Specify the model path
+    })
+      .then((hedgeFences) => {
+        console.log(`Loaded ${hedgeFences.length} hedge fence segments`);
+
+        // Add hedge fences to collision objects - using built-in handling
+        hedgeFences.forEach((fence) => {
+          // We don't need to register these with the model loader,
+          // they will work through the scene traversal
+        });
+      })
+      .catch((error) => {
+        console.error("Failed to load hedge fences:", error);
       });
-    }).catch(error => {
-      console.error('Failed to load hedge fences:', error);
-    });
 
     // Load trees outside the park
     loadTrees(scene, {
@@ -413,18 +427,46 @@ export function initGame() {
       treeDistance: 200, // Distance from center to start placing trees
       treeSpacing: 100, // Space between trees
       treeScale: 0.7, // Scale of trees
-      modelPath: './quick_treeit_tree.glb' // Path to tree model (you can change this)
-    }).then(trees => {
-      console.log(`Loaded ${trees.length} trees outside the park`);
-    }).catch(error => {
-      console.error('Failed to load trees:', error);
-    });
-
-    loadNpcModel(scene, {
-      npcModel: Math.floor(Math.random() * 2),
-      position: new THREE.Vector3((Math.random() * (10 - 4) + 4), 0, 180),
-      rotation: new THREE.Euler(0, Math.PI, 0)
+      modelPath: "./quick_treeit_tree.glb", // Path to tree model (you can change this)
     })
+      .then((trees) => {
+        console.log(`Loaded ${trees.length} trees outside the park`);
+      })
+      .catch((error) => {
+        console.error("Failed to load trees:", error);
+      });
+
+    // Load picnic tables - a group on the left side
+    loadPicnicTableGroup(scene, {
+      basePosition: new THREE.Vector3(-36.3, 0, 128.6),
+      count: 3,
+      spacing: 30,
+      direction: 'left'
+    })
+      .then(picnicTables => {
+        console.log(`Loaded ${picnicTables.length} picnic tables on the left side`);
+      })
+      .catch(error => {
+        console.error('Failed to load picnic tables:', error);
+      });
+
+    // Load NPC model and make it move to the ticket booth
+    loadNpcModel(scene, {
+      npcType: 0,
+      position: new THREE.Vector3(10, 0, 180),
+      rotation: new THREE.Euler(0, Math.PI, 0),
+    })
+      .then((npcModel) => {
+        console.log("NPC loaded!", npcModel);
+
+        // After NPC is loaded, make it move to the ticket booth
+        moveNpcToTicketBooth(npcModel, new THREE.Vector3(10, 0, 180), scene);
+      })
+      .catch((error) => {
+        console.error("Failed to load NPC model:", error);
+      });
+
+
   }
 
   loadModels();
@@ -473,12 +515,7 @@ export function initGame() {
   document.body.appendChild(warningBox);
 
   // Create ObjectPlacer instance after scene setup
-  const objectPlacer = new ObjectPlacer(
-    scene,
-    camera,
-    cameraHolder,
-    modelLoader
-  );
+  const objectPlacer = new ObjectPlacer(scene, camera, cameraHolder, modelLoader);
 
   document.body.appendChild(sidebar);
   document.body.appendChild(mapPanel);
@@ -551,7 +588,7 @@ export function initGame() {
       align-items: center;
       font-family: 'Poppins', sans-serif;
   `;
-  
+
   // Create time display
   const timeText = document.createElement("div");
   timeText.id = "time-text";
@@ -562,7 +599,7 @@ export function initGame() {
       color: #ffffff;
   `;
   timeText.textContent = "12:00";
-  
+
   // Create period display (AM/PM and day/night)
   const periodText = document.createElement("div");
   periodText.id = "period-text";
@@ -571,7 +608,7 @@ export function initGame() {
       color: #98ff98;
   `;
   periodText.textContent = "AM - Day";
-  
+
   // Add elements to clock display
   clockDisplay.appendChild(timeText);
   clockDisplay.appendChild(periodText);
@@ -646,20 +683,30 @@ export function initGame() {
     // Check for fence collision using raycasting
     const fenceCollision = checkFenceCollisionMultiDirection(cameraHolder.position, 2.0);
     if (fenceCollision.collision) {
-        // If collision detected, revert to previous position
-        cameraHolder.position.copy(previousPosition);
-        
-        // Show warning
-        // showWarning("⚠️ You can't walk through the fence! ⚠️");
+      // If collision detected, revert to previous position
+      cameraHolder.position.copy(previousPosition);
+      
+      // Show warning
+      // showWarning("⚠️ You can't walk through the fence! ⚠️");
     }
 
     // Check for ticket booth collision
     if (checkTicketBoothCollision(cameraHolder.position, 1.5)) {
-        // If collision detected, revert to previous position
-        cameraHolder.position.copy(previousPosition);
-        
-        // Show warning
-        // showWarning("⚠️ You can't walk through the ticket booth! ⚠️");
+      // If collision detected, revert to previous position
+      cameraHolder.position.copy(previousPosition);
+      
+      // Show warning
+      // showWarning("⚠️ You can't walk through the ticket booth! ⚠️");
+    }
+    
+    // Check for picnic table collision
+    const picnicTableCollision = checkPicnicTableCollision(cameraHolder.position, 1.0);
+    if (picnicTableCollision.collision) {
+      // If collision detected, revert to previous position
+      cameraHolder.position.copy(previousPosition);
+      
+      // Optionally show warning
+      // showWarning("⚠️ You can't walk through the picnic table! ⚠️");
     }
 
     // Check player collisions with other objects
@@ -676,7 +723,15 @@ export function initGame() {
 
     // Update celestial system and get time data
     const timeData = celestialSystem.update(camera, directionalLight);
-
+    
+    // Update shadow camera to follow the player for better shadow coverage
+    const playerPos = cameraHolder.position;
+    directionalLight.shadow.camera.updateProjectionMatrix();
+    
+    // Adjust shadow camera based on player position
+    directionalLight.target.position.set(playerPos.x, 0, playerPos.z);
+    directionalLight.target.updateMatrixWorld();
+    
     // Update clock display
     if (timeText && periodText) {
       timeText.textContent = timeData.timeString;

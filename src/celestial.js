@@ -358,6 +358,29 @@ export class CelestialSystem {
       directionalLight.position.copy(this.moon.position).normalize();
     }
     
+    // After updating the sun position, adjust the shadow settings
+    if (directionalLight) {
+      // If it's daytime (sun is above horizon), enable shadows
+      if (this.isDaytime) {
+        directionalLight.castShadow = true;
+        
+        // Adjust shadow darkness based on sun height (brighter at noon, softer near sunset/sunrise)
+        const sunHeight = Math.sin(this.currentTime * Math.PI * 2);
+        const shadowIntensity = Math.max(0.3, Math.min(1.0, sunHeight * 1.5));
+        
+        // Update directional light intensity based on time of day
+        directionalLight.intensity = Math.max(0.5, shadowIntensity);
+        
+        // Longer shadows near sunset/sunrise, shorter at noon
+        const shadowBias = -0.0005 - (0.001 * (1 - shadowIntensity));
+        directionalLight.shadow.bias = shadowBias;
+      } else {
+        // At night, disable shadows from the sun
+        directionalLight.castShadow = false;
+        directionalLight.intensity = 0.1; // Dim light at night
+      }
+    }
+    
     return timeData;
   }
   
