@@ -17,7 +17,8 @@ import {
   getMascotDialog,
   mascotObject
 } from './ticketBooth.js';
-import { loadHedgeFences } from './hedgeFences.js';
+import { loadHedgeFences, checkFenceCollisionMultiDirection } from './hedgeFences.js';
+import { loadTrees } from './trees.js';
 
 function showWarning(message) {
   const warningContainer = document.getElementById("warning-container");
@@ -83,7 +84,7 @@ export function initGame() {
   camera.position.set(0, 0, 0);
 
   const cameraHolder = new THREE.Object3D();
-  cameraHolder.position.set(0, 7, -20);
+  cameraHolder.position.set(4, 7, 170);
   cameraHolder.add(camera);
   scene.add(cameraHolder);
 
@@ -375,9 +376,9 @@ export function initGame() {
   async function loadModels() {
     // Load ticket booth with a larger scale and rotation
     loadTicketBooth(scene, {
-      position: new THREE.Vector3(10, 0, -5),
+      position: new THREE.Vector3(35, 0, 137.9),
       scale: 5,
-      rotation: new THREE.Euler(0, Math.PI / 2, 0) // Rotate 90 degrees around Y axis
+      rotation: new THREE.Euler(0, Math.PI, 0)
     }).then(ticketBoothObject => {
       console.log('Ticket booth loaded!', ticketBoothObject);
       
@@ -388,7 +389,7 @@ export function initGame() {
     // Load hedge fences around the park perimeter with adjusted parameters
     loadHedgeFences(scene, {
       centerPoint: new THREE.Vector3(0, 0, 0), // Center of the park
-      distance: 100, // 100 units from center to edge (total park size is 200x200)
+      distance: 150, // 100 units from center to edge (total park size is 200x200)
       fenceHeight: 10, // Height of the fences
       spacing: 15, // Increased spacing between fence segments from 10 to 15
       modelPath: './simple_brick_fence.glb' // Specify the model path
@@ -402,6 +403,20 @@ export function initGame() {
       });
     }).catch(error => {
       console.error('Failed to load hedge fences:', error);
+    });
+
+    // Load trees outside the park
+    loadTrees(scene, {
+      centerPoint: new THREE.Vector3(0, 0, 0), // Center of the park
+      parkDistance: 200, // Distance to park edge (should match fence distance)
+      treeDistance: 200, // Distance from center to start placing trees
+      treeSpacing: 100, // Space between trees
+      treeScale: 0.7, // Scale of trees
+      modelPath: './quick_treeit_tree.glb' // Path to tree model (you can change this)
+    }).then(trees => {
+      console.log(`Loaded ${trees.length} trees outside the park`);
+    }).catch(error => {
+      console.error('Failed to load trees:', error);
     });
   }
 
@@ -513,7 +528,7 @@ export function initGame() {
   clockDisplay.id = "clock-display";
   clockDisplay.style.cssText = `
       position: fixed;
-      top: 230px; // Position it below the map
+      top: 0px; // Position it below the map
       right: 20px;
       width: 200px;
       background: rgba(0, 0, 0, 0.7);
@@ -620,21 +635,23 @@ export function initGame() {
       interactionPrompt.style.display = "none";
     }
 
+    // Check for fence collision using raycasting
+    const fenceCollision = checkFenceCollisionMultiDirection(cameraHolder.position, 2.0);
+    if (fenceCollision.collision) {
+        // If collision detected, revert to previous position
+        cameraHolder.position.copy(previousPosition);
+        
+        // Show warning
+        // showWarning("⚠️ You can't walk through the fence! ⚠️");
+    }
+
     // Check for ticket booth collision
     if (checkTicketBoothCollision(cameraHolder.position, 1.5)) {
         // If collision detected, revert to previous position
         cameraHolder.position.copy(previousPosition);
         
-        // // Show warning
-        // warningBox.textContent = `⚠️ You can't walk through the ticket booth! ⚠️`;
-        // warningBox.style.display = "block";
-        // // Flash the warning box
-        // warningBox.style.animation = "none";
-        // warningBox.offsetHeight; // Trigger reflow
-        // warningBox.style.animation = "flash 0.5s 2";
-        setTimeout(() => {
-            warningBox.style.display = "none";
-        }, 1000); // Show for 1 second
+        // Show warning
+        // showWarning("⚠️ You can't walk through the ticket booth! ⚠️");
     }
 
     // Check player collisions with other objects
@@ -645,15 +662,7 @@ export function initGame() {
 
     const collisionResult = modelLoader.checkCollision(playerBox);
     if (collisionResult.collision) {
-      warningBox.textContent = `⚠️ Collision with ${collisionResult.objectName}! ⚠️`;
-      warningBox.style.display = "block";
-      // Flash the warning box
-      warningBox.style.animation = "none";
-      warningBox.offsetHeight; // Trigger reflow
-      warningBox.style.animation = "flash 0.5s 2";
-      setTimeout(() => {
-        warningBox.style.display = "none";
-      }, 1500); // Show for 1.5 seconds
+      showWarning(`⚠️ Collision with ${collisionResult.objectName}! ⚠️`);
       playerControls.rollbackPosition();
     }
 
