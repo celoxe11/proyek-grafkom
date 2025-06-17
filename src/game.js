@@ -355,7 +355,7 @@ export function initGame() {
   scene.add(new THREE.HemisphereLight(0xffffff, 0x444444, 1.0)); // Back to original lighting
 
   // Update the directional light settings for better shadows
-  const directionalLight = new THREE.DirectionalLight(0xffffff, 1); 
+  const directionalLight = new THREE.DirectionalLight(0xffffff, 5);
   directionalLight.position.set(20, 100, 10);
   directionalLight.castShadow = true;
 
@@ -368,7 +368,7 @@ export function initGame() {
   directionalLight.shadow.camera.right = 150;    // Wider frustum for shadows
   directionalLight.shadow.camera.top = 150;      // Wider frustum for shadows
   directionalLight.shadow.camera.bottom = -150;  // Wider frustum for shadows
-  directionalLight.shadow.bias = -0.0005;        // Reduce shadow acne
+  directionalLight.shadow.bias = -0.001;         // Changed: reduced from -0.0005 to -0.001 for darker shadows
   directionalLight.shadow.normalBias = 0.02;     // Better shadow edge quality
 
   // Add a helper to visualize the shadow camera (for debugging, can be commented out in production)
@@ -425,7 +425,7 @@ export function initGame() {
       centerPoint: new THREE.Vector3(0, 0, 0), // Center of the park
       parkDistance: 200, // Distance to park edge (should match fence distance)
       treeDistance: 200, // Distance from center to start placing trees
-      treeSpacing: 100, // Space between trees
+      treeSpacing: 150, // Space between trees
       treeScale: 0.7, // Scale of trees
       modelPath: "./quick_treeit_tree.glb", // Path to tree model (you can change this)
     })
