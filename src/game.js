@@ -6,7 +6,6 @@ import { Terrain } from "./terrain.js";
 import { PlayerControls } from "./controls.js";
 import { ObjectPlacer } from "./objectPlacer.js";
 import { InteractionManager } from "./interactionManager.js"; // Import InteractionManager
-import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import {
   loadTicketBooth,
   updateMascotPosition,
@@ -18,10 +17,17 @@ import {
   getMascotDialog,
   mascotObject,
 } from "./ticketBooth.js";
-import { loadHedgeFences, checkFenceCollisionMultiDirection } from "./hedgeFences.js";
+import {
+  loadHedgeFences,
+  checkFenceCollisionMultiDirection,
+} from "./hedgeFences.js";
 import { loadTrees } from "./trees.js";
 import { loadNpcModel, moveNpcToTicketBooth } from "./npc.js";
-import { loadPicnicTable, loadPicnicTableGroup, checkPicnicTableCollision } from "./picnicTables.js";
+import {
+  loadPicnicTableGroup,
+  checkPicnicTableCollision,
+} from "./picnicTables.js";
+import { loadParkCornerStreetLights, updateStreetLightsByTime, forceStreetLightsOn, toggleStreetLights, resetStreetLightOverride, isStreetLightOverridden, getAllLightObjects } from "./streetLight.js";
 
 function showWarning(message) {
   const warningContainer = document.getElementById("warning-container");
@@ -94,7 +100,14 @@ export function initGame() {
   const renderer = new THREE.WebGLRenderer({ antialias: true });
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.shadowMap.enabled = true;
-  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.shadowMap.type = THREE.PCFShadowMap;
+
+  // Configure renderer for better lighting but with performance in mind
+  renderer.physicallyCorrectLights = false;
+  renderer.outputEncoding = THREE.sRGBEncoding;
+  renderer.toneMapping = THREE.ReinhardToneMapping;
+  renderer.toneMappingExposure = 1.0;
+
   document.querySelector("#app").appendChild(renderer.domElement);
 
   // Calculate sidebar width once
@@ -177,6 +190,7 @@ export function initGame() {
         <div class="sidebar-content status-container">
           <div id="time-indicator">Time: Day</div>
           <div id="position-indicator">Position: X: 0, Y: 0, Z: 0</div>
+          <div id="light-override-indicator" style="color: #ffaa00; display: none;">🔒 Lights Override: ON</div>
         </div>
       </div>
 
@@ -200,6 +214,18 @@ export function initGame() {
           <div class="control-item">
             <span class="key">ESC</span>
             <span class="action">Menu</span>
+          </div>
+          <div class="control-item">
+            <span class="key">H</span>
+            <span class="action">Toggle Shadow Helper</span>
+          </div>
+          <div class="control-item">
+            <span class="key">L</span>
+            <span class="action">Toggle Street Lights</span>
+          </div>
+          <div class="control-item">
+            <span class="key">R</span>
+            <span class="action">Reset Light Override</span>
           </div>
         </div>
       </div>
@@ -352,30 +378,57 @@ export function initGame() {
   const interactionManager = new InteractionManager(camera, scene);
   modelLoader.interactionManager = interactionManager;
 
-  scene.add(new THREE.HemisphereLight(0xffffff, 0x444444, 1.0)); // Back to original lighting
+  // Create hemisphere light with variable intensity for day/night cycle
+  const hemisphereLight = new THREE.HemisphereLight(0xffffff, 0x444444, 1.0);
+  scene.add(hemisphereLight);
 
   // Update the directional light settings for better shadows
-  const directionalLight = new THREE.DirectionalLight(0xffffff, 5);
+  const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
   directionalLight.position.set(20, 100, 10);
   directionalLight.castShadow = true;
 
-  // Improve shadow map settings
-  directionalLight.shadow.mapSize.width = 4096;  // Increased for better quality
+  // Improve shadow map settings to cover the entire park area
+  directionalLight.shadow.mapSize.width = 4096; // Increased for better quality
   directionalLight.shadow.mapSize.height = 4096; // Increased for better quality
-  directionalLight.shadow.camera.near = 0.5;
-  directionalLight.shadow.camera.far = 500;
-  directionalLight.shadow.camera.left = -150;    // Wider frustum for shadows
-  directionalLight.shadow.camera.right = 150;    // Wider frustum for shadows
-  directionalLight.shadow.camera.top = 150;      // Wider frustum for shadows
-  directionalLight.shadow.camera.bottom = -150;  // Wider frustum for shadows
-  directionalLight.shadow.bias = -0.001;         // Changed: reduced from -0.0005 to -0.001 for darker shadows
-  directionalLight.shadow.normalBias = 0.02;     // Better shadow edge quality
+  directionalLight.shadow.camera.near = 0.1;
+  directionalLight.shadow.camera.far = 1000;
+  // Increase shadow area to cover entire park (300x300 units)
+  directionalLight.shadow.camera.left = -200;
+  directionalLight.shadow.camera.right = 200;
+  directionalLight.shadow.camera.top = 200;
+  directionalLight.shadow.camera.bottom = -200;
+  directionalLight.shadow.bias = -0.001;
+  directionalLight.shadow.normalBias = 0.02;
 
-  // Add a helper to visualize the shadow camera (for debugging, can be commented out in production)
-  // const helper = new THREE.CameraHelper(directionalLight.shadow.camera);
-  // scene.add(helper);
+  // Add a helper to visualize the shadow camera (enable for debugging)
+  const helper = new THREE.CameraHelper(directionalLight.shadow.camera);
+  helper.visible = false; // Start hidden
+  scene.add(helper);
 
   scene.add(directionalLight);
+
+  // Test box for shadow visibility - positioned above ground
+  const box = new THREE.Mesh(
+    new THREE.BoxGeometry(10, 10, 10),
+    new THREE.MeshStandardMaterial({ color: 0x00ff00 })
+  );
+  box.position.set(20, 5, 20); // Position above ground
+  box.castShadow = true;
+  box.receiveShadow = true;
+  scene.add(box);
+
+  // Add a ground plane to receive shadows
+  const groundGeometry = new THREE.PlaneGeometry(400, 400);
+  const groundMaterial = new THREE.MeshStandardMaterial({
+    color: 0x228b22,
+    transparent: true,
+    opacity: 0.5,
+  });
+  const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+  ground.rotation.x = -Math.PI / 2; // Rotate to be horizontal
+  ground.position.y = -0.1; // Slightly below terrain
+  ground.receiveShadow = true;
+  scene.add(ground);
 
   // Remove model-related variables
   const positionIndicator = document.createElement("div");
@@ -441,13 +494,15 @@ export function initGame() {
       basePosition: new THREE.Vector3(-36.3, 0, 128.6),
       count: 3,
       spacing: 30,
-      direction: 'left'
+      direction: "left",
     })
-      .then(picnicTables => {
-        console.log(`Loaded ${picnicTables.length} picnic tables on the left side`);
+      .then((picnicTables) => {
+        console.log(
+          `Loaded ${picnicTables.length} picnic tables on the left side`
+        );
       })
-      .catch(error => {
-        console.error('Failed to load picnic tables:', error);
+      .catch((error) => {
+        console.error("Failed to load picnic tables:", error);
       });
 
     // Load NPC model and make it move to the ticket booth
@@ -466,7 +521,28 @@ export function initGame() {
         console.error("Failed to load NPC model:", error);
       });
 
-
+    loadParkCornerStreetLights(scene, {
+      parkSize: 150, // Distance from center to corner
+      scale: 3,
+      modelPath: "./street_light.glb", // Path to street light model
+      lightIntensity: 25, // Higher initial intensity
+      lightDistance: 100, // Increased distance
+      debugLightSphere: true, // Enable debug spheres
+    })
+      .then((streetLights) => {
+        console.log(`🎯 Street lights loading completed: ${streetLights.length} lights`);
+        // Initialize lights based on current game time after loading
+        setTimeout(() => {
+          console.log("🔄 Initializing street lights based on game time...");
+          import('./streetLight.js').then(({ updateStreetLightsByTime }) => {
+            // Get current hour from celestial system
+            updateStreetLightsByTime(6); // Start at 6 AM (lights should be OFF)
+          });
+        }, 1000);
+      })
+      .catch((error) => {
+        console.error("❌ Failed to load street lights:", error);
+      });
   }
 
   loadModels();
@@ -515,7 +591,12 @@ export function initGame() {
   document.body.appendChild(warningBox);
 
   // Create ObjectPlacer instance after scene setup
-  const objectPlacer = new ObjectPlacer(scene, camera, cameraHolder, modelLoader);
+  const objectPlacer = new ObjectPlacer(
+    scene,
+    camera,
+    cameraHolder,
+    modelLoader
+  );
 
   document.body.appendChild(sidebar);
   document.body.appendChild(mapPanel);
@@ -674,18 +755,24 @@ export function initGame() {
     camera.getWorldDirection(cameraDirection);
 
     // Check if player is looking at mascot
-    if (isLookingAtMascot(cameraHolder.position, cameraDirection) && !isShowingMascotDialog) {
+    if (
+      isLookingAtMascot(cameraHolder.position, cameraDirection) &&
+      !isShowingMascotDialog
+    ) {
       interactionPrompt.style.display = "block";
     } else {
       interactionPrompt.style.display = "none";
     }
 
     // Check for fence collision using raycasting
-    const fenceCollision = checkFenceCollisionMultiDirection(cameraHolder.position, 2.0);
+    const fenceCollision = checkFenceCollisionMultiDirection(
+      cameraHolder.position,
+      2.0
+    );
     if (fenceCollision.collision) {
       // If collision detected, revert to previous position
       cameraHolder.position.copy(previousPosition);
-      
+
       // Show warning
       // showWarning("⚠️ You can't walk through the fence! ⚠️");
     }
@@ -694,17 +781,20 @@ export function initGame() {
     if (checkTicketBoothCollision(cameraHolder.position, 1.5)) {
       // If collision detected, revert to previous position
       cameraHolder.position.copy(previousPosition);
-      
+
       // Show warning
       // showWarning("⚠️ You can't walk through the ticket booth! ⚠️");
     }
-    
+
     // Check for picnic table collision
-    const picnicTableCollision = checkPicnicTableCollision(cameraHolder.position, 1.0);
+    const picnicTableCollision = checkPicnicTableCollision(
+      cameraHolder.position,
+      1.0
+    );
     if (picnicTableCollision.collision) {
       // If collision detected, revert to previous position
       cameraHolder.position.copy(previousPosition);
-      
+
       // Optionally show warning
       // showWarning("⚠️ You can't walk through the picnic table! ⚠️");
     }
@@ -723,27 +813,31 @@ export function initGame() {
 
     // Update celestial system and get time data
     const timeData = celestialSystem.update(camera, directionalLight);
-    
-    // Update shadow camera to follow the player for better shadow coverage
-    const playerPos = cameraHolder.position;
-    directionalLight.shadow.camera.updateProjectionMatrix();
-    
-    // Adjust shadow camera based on player position
-    directionalLight.target.position.set(playerPos.x, 0, playerPos.z);
-    directionalLight.target.updateMatrixWorld();
-    
+
+    // Control hemisphere light based on time of day
+    if (timeData.isDaytime) {
+      hemisphereLight.intensity = 1.0; // Full ambient light during day
+    } else {
+      hemisphereLight.intensity = 0.2; // Some ambient light at night for better visibility
+    }
+
+    // Remove the manual shadow camera positioning - let celestial system handle it
+    // The celestial system now positions the directional light to follow sun/moon
+
     // Update clock display
     if (timeText && periodText) {
       timeText.textContent = timeData.timeString;
-      periodText.textContent = `${timeData.period} - ${timeData.isDaytime ? 'Day' : 'Night'}`;
-      
+      periodText.textContent = `${timeData.period} - ${
+        timeData.isDaytime ? "Day" : "Night"
+      }`;
+
       // Update colors based on time of day
       if (timeData.isDaytime) {
-        timeText.style.color = '#ffffff';
-        periodText.style.color = '#98ff98';
+        timeText.style.color = "#ffffff";
+        periodText.style.color = "#98ff98";
       } else {
-        timeText.style.color = '#aaccff';
-        periodText.style.color = '#88aaff';
+        timeText.style.color = "#aaccff";
+        periodText.style.color = "#88aaff";
       }
     }
 
@@ -757,10 +851,12 @@ export function initGame() {
     // Update object placer
     if (objectPlacer && objectPlacer.active) {
       objectPlacer.updatePreviewTransform();
-      
+
       // Check if preview object collides with ticket booth
-      const isColliding = objectPlacer.checkPlacementCollision(ticketBoothBoundingBox);
-      
+      const isColliding = objectPlacer.checkPlacementCollision(
+        ticketBoothBoundingBox
+      );
+
       // Update preview material based on collision status
       objectPlacer.updatePreviewMaterial(isColliding);
     }
@@ -811,6 +907,49 @@ export function initGame() {
         if (objectPlacer) {
           await objectPlacer.startPlacement();
         }
+        break;
+      case "h":
+      case "H":
+        // Toggle shadow camera helper
+        helper.visible = !helper.visible;
+        console.log(`Shadow helper ${helper.visible ? 'enabled' : 'disabled'}`);
+        break;
+      case "l":
+      case "L":
+        // Toggle street lights
+        console.log("🔄 Toggling street lights...");
+        const newState = toggleStreetLights();
+        
+        // Update override indicator
+        const overrideIndicator = document.getElementById('light-override-indicator');
+        if (overrideIndicator) {
+          overrideIndicator.style.display = 'block';
+          overrideIndicator.textContent = `🔒 Lights Override: ${newState ? 'FORCED ON' : 'FORCED OFF'}`;
+        }
+        
+        // Also show debug information
+        const allLights = getAllLightObjects();
+        console.log(`Current light objects: ${allLights?.length || 0}`);
+        allLights.forEach((light, i) => {
+          console.log(`Light ${i}: position=${light.position.toArray()}, visible=${light.rectAreaLight?.visible}, intensity=${light.rectAreaLight?.intensity}`);
+        });
+        break;
+      case "r":
+      case "R":
+        // Reset light override and restore time-based control
+        console.log("🔓 Resetting street light override...");
+        resetStreetLightOverride();
+        
+        // Hide override indicator
+        const resetOverrideIndicator = document.getElementById('light-override-indicator');
+        if (resetOverrideIndicator) {
+          resetOverrideIndicator.style.display = 'none';
+        }
+        
+        // Immediately update lights based on current time
+        setTimeout(() => {
+          updateStreetLightsByTime(celestialSystem.gameHour);
+        }, 100);
         break;
     }
   });
@@ -920,15 +1059,20 @@ export function initGame() {
       // Check if looking at mascot and interaction prompt is visible
       const cameraDirection = new THREE.Vector3();
       camera.getWorldDirection(cameraDirection);
-      
-      if (isLookingAtMascot(cameraHolder.position, cameraDirection) && !isShowingMascotDialog) {
+
+      if (
+        isLookingAtMascot(cameraHolder.position, cameraDirection) &&
+        !isShowingMascotDialog
+      ) {
         // Show mascot dialog
         mascotDialog.textContent = getMascotDialog();
         mascotDialog.style.display = "block";
         isShowingMascotDialog = true;
-        
+
         // Hide after 5 seconds
-        if (mascotDialogTimeout) clearTimeout(mascotDialogTimeout);
+        if (mascotDialogTimeout) {
+          clearTimeout(mascotDialogTimeout);
+        }
         mascotDialogTimeout = setTimeout(() => {
           mascotDialog.style.display = "none";
           isShowingMascotDialog = false;
@@ -937,3 +1081,4 @@ export function initGame() {
     }
   });
 }
+

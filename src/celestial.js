@@ -19,8 +19,8 @@ export class CelestialSystem {
     this.scene.fog = this.dayFog;
     
     // Set the celestial distance and maximum height
-    this.celestialDistance = 1500;
-    this.celestialHeight = 800;
+    this.celestialDistance = 800; // Reduced from 1500 to bring closer
+    this.celestialHeight = 400; // Reduced proportionally
     
     // Create all celestial bodies
     this.createSun();
@@ -32,17 +32,33 @@ export class CelestialSystem {
     this.starsTwinkleTime = 0;
     
     // Add clock properties
-    this.gameHour = 7; // Start at 6 AM
+    this.gameHour = 6; // Start at 6 AM to see the street lights turn off during day
     this.gameMinute = 0;
     this.timeMultiplier = 5; // 1 real second = 5 game minutes
     this.minuteStep = 10; // Minutes will increment by 10
     this.minuteAccumulator = 0; // Track partial minutes before updating display
     this.lastUpdate = Date.now();
+    
+    // Performance optimization: cache frequently used vectors
+    this.tempVector = new THREE.Vector3();
+    this.tempVector2 = new THREE.Vector3();
+    
+    // Reduce update frequencies for performance
+    this.lightUpdateCounter = 0;
+    this.starUpdateCounter = 0;
+    
+    // Street light update tracking
+    this.lastStreetLightHour = this.gameHour;
+    
+    // Initialize street lights based on starting hour
+    setTimeout(() => {
+      this.initializeStreetLights();
+    }, 1000); // Give time for street lights to load
   }
   
   createSun() {
-    // Create Sun with texture as a flat circle
-    const sunGeometry = new THREE.CircleGeometry(200, 32);
+    // Create Sun with texture as a flat circle - smaller size
+    const sunGeometry = new THREE.CircleGeometry(80, 32); // Reduced from 200 to 80
     const sunTextureLoader = new THREE.TextureLoader();
     const sunTexture = sunTextureLoader.load('/wajah_matahari.jpg');
     
@@ -55,13 +71,13 @@ export class CelestialSystem {
     
     this.sun = new THREE.Mesh(sunGeometry, sunMaterial);
     
-    // Add a glow effect around the sun - using multiple layers
+    // Add a glow effect around the sun - adjusted for smaller size
     const sunGlowLayers = [
-      { innerRadius: 200, outerRadius: 220, opacity: 0.6 },
-      { innerRadius: 220, outerRadius: 245, opacity: 0.4 },
-      { innerRadius: 245, outerRadius: 275, opacity: 0.3 },
-      { innerRadius: 275, outerRadius: 310, opacity: 0.2 },
-      { innerRadius: 310, outerRadius: 350, opacity: 0.1 }
+      { innerRadius: 80, outerRadius: 95, opacity: 0.6 }, // Adjusted proportionally
+      { innerRadius: 95, outerRadius: 115, opacity: 0.4 },
+      { innerRadius: 115, outerRadius: 140, opacity: 0.3 },
+      { innerRadius: 140, outerRadius: 170, opacity: 0.2 },
+      { innerRadius: 170, outerRadius: 200, opacity: 0.1 }
     ];
     
     const sunGlowGroup = new THREE.Group();
@@ -95,8 +111,8 @@ export class CelestialSystem {
   }
   
   createMoon() {
-    // Create Moon as a flat circle
-    const moonGeometry = new THREE.CircleGeometry(70, 32);
+    // Create Moon as a flat circle - slightly smaller
+    const moonGeometry = new THREE.CircleGeometry(35, 32); // Reduced from 70 to 35
     const sunTextureLoader = new THREE.TextureLoader();
     const moonTexture = sunTextureLoader.load('/wajah_bulan.jpg');
     const moonMaterial = new THREE.MeshBasicMaterial({
@@ -107,8 +123,8 @@ export class CelestialSystem {
     });
     this.moon = new THREE.Mesh(moonGeometry, moonMaterial);
     
-    // Add a stronger white glow to the moon
-    const moonGlowGeometry = new THREE.RingGeometry(70, 85, 32);
+    // Add a stronger white glow to the moon - adjusted for smaller size
+    const moonGlowGeometry = new THREE.RingGeometry(35, 45, 32); // Adjusted from 70, 85
     const moonGlowMaterial = new THREE.MeshBasicMaterial({
       color: 0xFFFFFF, // Pure white glow
       transparent: true,
@@ -121,9 +137,9 @@ export class CelestialSystem {
     moonGlow.position.z = -0.1;
     this.moon.add(moonGlow);
     
-    // Moon light source - brighter, whiter light
-    this.moonLight = new THREE.PointLight(0xF8F8FF, 1.2, 10000);
-    this.moon.add(this.moonLight);
+    // Remove moon light source to make nights darker
+    // this.moonLight = new THREE.PointLight(0xF8F8FF, 1.2, 10000);
+    // this.moon.add(this.moonLight);
     
     // Set initial position
     this.moon.position.set(-this.celestialDistance, 50, 0);
@@ -151,8 +167,8 @@ export class CelestialSystem {
     for (let i = 0; i < starsCount; i++) {
       const i3 = i * 3;
       
-      // Random position on a sphere
-      const radius = 5000;
+      // Random position on a sphere - closer radius
+      const radius = 2000; // Reduced from 5000 to bring stars closer
       const theta = Math.random() * Math.PI;
       const phi = Math.random() * Math.PI * 2;
       
@@ -226,6 +242,16 @@ export class CelestialSystem {
     };
   }
   
+  // Add method to initialize street lights based on current time
+  initializeStreetLights() {
+    import('./streetLight.js').then(({ updateStreetLightsByTime }) => {
+      console.log(`🚦 Initializing street lights for starting hour: ${this.gameHour}`);
+      updateStreetLightsByTime(this.gameHour);
+    }).catch(error => {
+      console.warn('Could not initialize street lights:', error);
+    });
+  }
+  
   update(camera, directionalLight) {
     const currentTime = Date.now();
     const deltaMs = currentTime - this.lastUpdate;
@@ -252,6 +278,20 @@ export class CelestialSystem {
           this.gameHour %= 24;
         }
       }
+    }
+    
+    // Check if hour changed and update street lights
+    if (this.gameHour !== this.lastStreetLightHour) {
+      console.log(`🕐 Hour changed from ${this.lastStreetLightHour} to ${this.gameHour}`);
+      // Import and call street light update function
+      import('./streetLight.js').then(({ updateStreetLightsByTime }) => {
+        console.log(`🔄 Calling updateStreetLightsByTime with hour: ${this.gameHour}`);
+        updateStreetLightsByTime(this.gameHour);
+        console.log(`✅ Updated street lights for hour ${this.gameHour}`);
+      }).catch(error => {
+        console.warn('Could not update street lights:', error);
+      });
+      this.lastStreetLightHour = this.gameHour;
     }
     
     // Calculate day cycle progress based on current game time
@@ -334,9 +374,9 @@ export class CelestialSystem {
       this.moon.visible = true;
       this.sun.visible = false;
       
-      // Moon lighting (soft blue light)
-      directionalLight.intensity = 0.3;
-      directionalLight.color.set(0xaaaaff);
+      // Stronger moon lighting for better visibility
+      directionalLight.intensity = 0.3; // Increased from 0.02 to 0.3
+      directionalLight.color.set(0x6699ff); // Brighter blue tint for moonlight
       
       // Night sky
       this.scene.background = this.NIGHT_COLOR;
@@ -353,32 +393,36 @@ export class CelestialSystem {
     
     // Update directional light to follow sun/moon position
     if (this.sun.visible) {
-      directionalLight.position.copy(this.sun.position).normalize();
+      // Position directional light to come FROM the sun's direction
+      const sunToCenter = new THREE.Vector3().subVectors(new THREE.Vector3(0, 0, 0), this.sun.position).normalize();
+      directionalLight.position.copy(this.sun.position);
+      directionalLight.target.position.set(0, 0, 0);
+      directionalLight.target.updateMatrixWorld();
     } else {
-      directionalLight.position.copy(this.moon.position).normalize();
+      // Position directional light to come FROM the moon's direction
+      directionalLight.position.copy(this.moon.position);
+      directionalLight.target.position.set(0, 0, 0);
+      directionalLight.target.updateMatrixWorld();
     }
     
-    // After updating the sun position, adjust the shadow settings
-    if (directionalLight) {
-      // If it's daytime (sun is above horizon), enable shadows
-      if (this.isDaytime) {
-        directionalLight.castShadow = true;
-        
-        // Adjust shadow darkness based on sun height (brighter at noon, softer near sunset/sunrise)
-        const sunHeight = Math.sin(this.currentTime * Math.PI * 2);
-        const shadowIntensity = Math.max(0.3, Math.min(1.0, sunHeight * 1.5));
-        
-        // Update directional light intensity based on time of day
-        directionalLight.intensity = Math.max(0.5, shadowIntensity);
-        
-        // Longer shadows near sunset/sunrise, shorter at noon
-        const shadowBias = -0.0005 - (0.001 * (1 - shadowIntensity));
-        directionalLight.shadow.bias = shadowBias;
-      } else {
-        // At night, disable shadows from the sun
-        directionalLight.castShadow = false;
-        directionalLight.intensity = 0.1; // Dim light at night
-      }
+    // Manage shadows based on time of day
+    if (height > 0) {
+      // Daytime - enable shadows with stronger settings
+      directionalLight.castShadow = true;
+      
+      // Adjust shadow intensity based on sun height
+      const sunHeight = height / this.celestialHeight;
+      directionalLight.intensity = 1.0 + sunHeight * 1.5; // Increased intensity
+      
+      // Better shadow settings for daytime
+      directionalLight.shadow.bias = -0.0005;
+      directionalLight.shadow.normalBias = 0.01;
+    } else {
+      // Nighttime - stronger moon shadows for better visibility
+      directionalLight.castShadow = true; // Keep shadows for realistic moon shadows
+      directionalLight.intensity = 0.4; // Much brighter moon lighting
+      directionalLight.shadow.bias = -0.001;
+      directionalLight.shadow.normalBias = 0.02;
     }
     
     return timeData;
@@ -398,7 +442,7 @@ export class CelestialSystem {
     directionalLight.color.set(0xffffff);
     
     // Calculate dynamic lighting based on sun position
-    const lightIntensity = Math.sin(dayProgress * Math.PI) * 0.8 + 0.2;
+    const lightIntensity = Math.sin(dayProgress * Math.PI) * 1.2 + 0.8; // Increased intensity
     
     // Dynamic fog and colors depending on time of day
     if (dayProgress < 0.1 || dayProgress > 0.9) {
@@ -425,8 +469,16 @@ export class CelestialSystem {
     
     directionalLight.intensity = lightIntensity;
     
-    // Update directional light to follow sun position
-    directionalLight.position.copy(this.sun.position).normalize();
+    // Update directional light to follow sun direction but at reasonable distance
+    const sunDirection = new THREE.Vector3().subVectors(this.sun.position, new THREE.Vector3(0, 0, 0)).normalize();
+    directionalLight.position.copy(sunDirection.multiplyScalar(200));
+    directionalLight.target.position.set(0, 0, 0);
+    directionalLight.target.updateMatrixWorld();
+    
+    // Enable shadows during daytime with stronger settings
+    directionalLight.castShadow = true;
+    directionalLight.shadow.bias = -0.008; // Much more negative for darker shadows
+    directionalLight.shadow.normalBias = 0.005;
     
     // Hide stars during the day by fading them out
     const starMaterial = this.stars.material;
@@ -443,8 +495,8 @@ export class CelestialSystem {
     this.moon.visible = true;
     this.sun.visible = false;
     
-    // Evening to morning
-    const lightIntensity = 0.2;
+    // Much dimmer lighting for night to emphasize street lights
+    const lightIntensity = 0.05; // Reduced from 0.4 to make streets lights more prominent
     this.scene.background.copy(this.NIGHT_COLOR);
     directionalLight.intensity = lightIntensity;
     
@@ -456,9 +508,11 @@ export class CelestialSystem {
     const moonHeight = Math.sin(angle);
     this.nightFog.density = 0.001 + (0.001 * (1 - moonHeight));
     
-    // Update directional light for moonlight effect
-    directionalLight.position.copy(this.moon.position).normalize();
-    directionalLight.color.set(0xaaaaff);
+    // Update directional light for minimal moonlight effect
+    directionalLight.position.copy(this.moon.position);
+    directionalLight.target.position.set(0, 0, 0);
+    directionalLight.target.updateMatrixWorld();
+    directionalLight.color.set(0x444477); // Darker blue color
     
     // Show stars at night by fading them in
     const starMaterial = this.stars.material;

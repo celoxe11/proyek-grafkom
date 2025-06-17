@@ -13,7 +13,7 @@ function setupAnimationMixer(npc) {
   }
 
   const mixer = new THREE.AnimationMixer(npc);
-  console.log(`Available animations for NPC:`, npc.animations);
+  // console.log(`Available animations for NPC:`, npc.animations);
 
   const animationIndices = findAnimationIndices(npc.animations);
   const actions = createAnimationActions(mixer, npc.animations, animationIndices);
@@ -21,7 +21,7 @@ function setupAnimationMixer(npc) {
   // Start with walking animation
   if (actions.walkAction) {
     actions.walkAction.play();
-    console.log("Walking animation started playing");
+    // console.log("Walking animation started playing");
   }
 
   mixer.update(0.01);
@@ -142,7 +142,7 @@ function switchToIdle(actions, npc, targetRotation = null) {
     actions.idleAction.paused = false;
     actions.idleAction.weight = 1;
     actions.idleAction.play();
-    console.log("Switched to idle animation");
+    // console.log("Switched to idle animation");
   } else if (actions.walkAction) {
     actions.walkAction.paused = true;
     console.log("Paused walking animation (no idle available)");
@@ -150,7 +150,7 @@ function switchToIdle(actions, npc, targetRotation = null) {
 
   if (targetRotation !== null) {
     npc.rotation.y = targetRotation;
-    console.log(`Rotated NPC to ${targetRotation} radians`);
+    // console.log(`Rotated NPC to ${targetRotation} radians`);
   }
 }
 
@@ -162,16 +162,16 @@ function switchToWalking(actions) {
     actions.walkAction.paused = false;
     actions.walkAction.weight = 1;
     actions.walkAction.play();
-    console.log("Switched to walking animation");
+    // console.log("Switched to walking animation");
   } else if (actions.walkAction) {
     actions.walkAction.paused = false;
-    console.log("Resumed walking animation");
+    // console.log("Resumed walking animation");
   }
 }
 
 // Sitting animation functions
 function switchToSitting(npc, scene, mixer) {
-  console.log("Attempting to switch to sitting animation...");
+  // console.log("Attempting to switch to sitting animation...");
   
   const hasSittingAnim = checkForExistingSittingAnimation(npc);
   
@@ -199,7 +199,7 @@ function loadAndApplySittingAnimation(npc, scene, mixer) {
     return;
   }
 
-  console.log("Loading sitting animation on demand from:", sittingAnimationPath);
+  // console.log("Loading sitting animation on demand from:", sittingAnimationPath);
   
   const loader = new FBXLoader();
   loader.load(
@@ -214,10 +214,10 @@ function loadAndApplySittingAnimation(npc, scene, mixer) {
 }
 
 function handleSittingAnimationLoaded(sittingAnimation, npc, scene, mixer) {
-  console.log("Successfully loaded sitting animation");
+  // console.log("Successfully loaded sitting animation");
   
   if (!sittingAnimation.animations || sittingAnimation.animations.length === 0) {
-    console.warn("No animations found in the sitting animation file");
+    // console.warn("No animations found in the sitting animation file");
     useSittingModelAsReplacement(sittingAnimation, npc, scene);
     return;
   }
@@ -229,7 +229,7 @@ function handleSittingAnimationLoaded(sittingAnimation, npc, scene, mixer) {
     const newSittingAnimIndex = npc.animations.length - 1;
     playSittingAnimation(npc, mixer, newSittingAnimIndex);
   } else {
-    console.warn("Animation incompatible - using model replacement method");
+    // console.warn("Animation incompatible - using model replacement method");
     useSittingModelAsReplacement(sittingAnimation, npc, scene);
   }
 }
@@ -260,7 +260,7 @@ function isAnimationCompatible(animation, npc) {
     }
   }
   
-  console.log(`Animation track bone match: ${tracksMatchingBones}/${animation.tracks.length}`);
+  // console.log(`Animation track bone match: ${tracksMatchingBones}/${animation.tracks.length}`);
   return tracksMatchingBones > 0;
 }
 
@@ -284,11 +284,11 @@ function addSittingAnimationToModel(animation, npc) {
   }
   
   npc.animations.push(animClone);
-  console.log(`Added sitting animation: ${animClone.name}, Duration: ${animClone.duration}`);
+  // console.log(`Added sitting animation: ${animClone.name}, Duration: ${animClone.duration}`);
 }
 
 function useSittingModelAsReplacement(sittingModel, originalModel, scene) {
-  console.log("Using sitting model as replacement...");
+  // console.log("Using sitting model as replacement...");
   
   // Apply position and rotation changes as requested
   sittingModel.position.copy(originalModel.position);
@@ -298,27 +298,27 @@ function useSittingModelAsReplacement(sittingModel, originalModel, scene) {
   sittingModel.rotation.copy(originalModel.rotation);
   sittingModel.rotation.y -= Math.PI / 2; // Changed: rotate 90 degrees (π/2 radians)
   
-  console.log(`Positioned sitting model at: ${sittingModel.position.toArray()}`);
-  console.log(`Rotated sitting model to: ${sittingModel.rotation.toArray()}`);
+  // console.log(`Positioned sitting model at: ${sittingModel.position.toArray()}`);
+  // console.log(`Rotated sitting model to: ${sittingModel.rotation.toArray()}`);
   
   applyShadowSettings(sittingModel);
   originalModel.visible = false;
   scene.add(sittingModel);
   
-  console.log("Sitting model placed in scene");
+  // console.log("Sitting model placed in scene");
 }
 
 function playSittingAnimation(npc, mixer, animIndex) {
-  console.log(`Playing sitting animation at index ${animIndex}`);
+  // console.log(`Playing sitting animation at index ${animIndex}`);
   
   if (animIndex < 0 || animIndex >= npc.animations.length) {
-    console.warn(`Invalid sitting animation index: ${animIndex}`);
+    // console.warn(`Invalid sitting animation index: ${animIndex}`);
     return;
   }
 
   const sitClip = npc.animations[animIndex];
   if (sitClip.tracks.length === 0) {
-    console.warn("Animation has no tracks, cannot play it");
+    // console.warn("Animation has no tracks, cannot play it");
     return;
   }
 
@@ -336,8 +336,8 @@ function applySittingPosition(npc) {
   npc.position.z += 2;
   npc.rotation.y -= Math.PI / 2; // Changed: rotate 90 degrees
   
-  console.log(`Adjusted sitting position to: ${npc.position.toArray()}`);
-  console.log(`Adjusted sitting rotation to: ${npc.rotation.toArray()}`);
+  // console.log(`Adjusted sitting position to: ${npc.position.toArray()}`);
+  // console.log(`Adjusted sitting rotation to: ${npc.rotation.toArray()}`);
 }
 
 function createAndPlaySittingAction(mixer, sitClip, npc) {
@@ -355,7 +355,7 @@ function createAndPlaySittingAction(mixer, sitClip, npc) {
   sitAction.play();
   newMixer.update(0.01);
   
-  console.log("Sitting animation is now playing");
+  // console.log("Sitting animation is now playing");
 }
 
 function stopWalkingAnimation(mixer) {
@@ -444,7 +444,7 @@ function handleWaiting(npc, state, animationData) {
         switchToWalking(animationData.actions);
         state.isMoving = true;
       }
-      console.log(`Moving to next waypoint: ${state.currentWaypoint}`);
+      // console.log(`Moving to next waypoint: ${state.currentWaypoint}`);
     }
   }
   return true;
@@ -469,10 +469,10 @@ function handleWaypointReached(npc, waypoints, state, animationData, scene) {
     // At ticket booth
     state.waiting = true;
     state.waitStartTime = clock.getElapsedTime();
-    console.log("Reached ticket booth, waiting...");
+    // console.log("Reached ticket booth, waiting...");
   } else if (state.currentWaypoint === waypoints.length - 1) {
     // At final sitting position
-    console.log("Reached final sitting position");
+    // console.log("Reached final sitting position");
     
     const sittingDestination = waypoints[waypoints.length - 1];
     npc.position.copy(sittingDestination);
@@ -495,10 +495,9 @@ function handleWaypointReached(npc, waypoints, state, animationData, scene) {
     
     state.currentWaypoint++;
     state.isSitting = true;
-    console.log("NPC should now be in sitting position");
   } else {
     state.currentWaypoint++;
-    console.log(`Moving to next waypoint: ${state.currentWaypoint}`);
+    // console.log(`Moving to next waypoint: ${state.currentWaypoint}`);
   }
   return true;
 }
@@ -545,9 +544,9 @@ export function loadNpcModel(scene, options = {}) {
     loader.load(
       walkingAnimationPath,
       (walkingModel) => {
-        console.log(
-          `Successfully loaded walking animation model for NPC type ${npcType}`
-        );
+        // console.log(
+        //   `Successfully loaded walking animation model for NPC type ${npcType}`
+        // );
 
         // Store the npcType and animation path for later use
         walkingModel.userData = {
@@ -558,21 +557,21 @@ export function loadNpcModel(scene, options = {}) {
 
         // If we have the walking model with animation, use it directly
         if (walkingModel.animations && walkingModel.animations.length > 0) {
-          console.log(
-            `Walking model has ${walkingModel.animations.length} animations`
-          );
+          // console.log(
+          //   `Walking model has ${walkingModel.animations.length} animations`
+          // );
           setupAndAddModel(walkingModel, scene, position, rotation, resolve);
         } else {
           // If walking model doesn't have animations, try loading the default model and combining
-          console.log(
-            "Walking model has no animations, loading default model..."
-          );
+          // console.log(
+          //   "Walking model has no animations, loading default model..."
+          // );
           loader.load(
             defaultModelPath,
             (characterModel) => {
-              console.log(
-                `Successfully loaded character model for NPC type ${npcType}`
-              );
+              // console.log(
+              //   `Successfully loaded character model for NPC type ${npcType}`
+              // );
 
               // Store the npcType and animation path for later use
               characterModel.userData = {
@@ -585,9 +584,9 @@ export function loadNpcModel(scene, options = {}) {
               loader.load(
                 walkingAnimationPath,
                 (walkingAnimation) => {
-                  console.log(
-                    `Successfully loaded walking animation for NPC type ${npcType}`
-                  );
+                  // console.log(
+                  //   `Successfully loaded walking animation for NPC type ${npcType}`
+                  // );
 
                   // Extract all animations from the walking animation model
                   if (
@@ -606,9 +605,9 @@ export function loadNpcModel(scene, options = {}) {
 
                       // Add to character model
                       characterModel.animations.push(animClone);
-                      console.log(
-                        `Added animation: ${animClone.name}, Duration: ${animClone.duration}`
-                      );
+                      // console.log(
+                      //   `Added animation: ${animClone.name}, Duration: ${animClone.duration}`
+                      // );
                     });
                   } else {
                     console.warn(
@@ -661,9 +660,9 @@ export function loadNpcModel(scene, options = {}) {
         loader.load(
           defaultModelPath,
           (characterModel) => {
-            console.log(
-              `Successfully loaded character model for NPC type ${npcType}`
-            );
+            // console.log(
+            //   `Successfully loaded character model for NPC type ${npcType}`
+            // );
 
             // Store the npcType and animation path for later use
             characterModel.userData = {
@@ -676,9 +675,9 @@ export function loadNpcModel(scene, options = {}) {
             loader.load(
               walkingAnimationPath,
               (walkingAnimation) => {
-                console.log(
-                  `Successfully loaded walking animation for NPC type ${npcType}`
-                );
+                // console.log(
+                //   `Successfully loaded walking animation for NPC type ${npcType}`
+                // );
 
                 // Extract all animations from the walking animation model
                 if (
@@ -697,9 +696,9 @@ export function loadNpcModel(scene, options = {}) {
 
                     // Add to character model
                     characterModel.animations.push(animClone);
-                    console.log(
-                      `Added animation: ${animClone.name}, Duration: ${animClone.duration}`
-                    );
+                    // console.log(
+                    //   `Added animation: ${animClone.name}, Duration: ${animClone.duration}`
+                    // );
                   });
                 } else {
                   console.warn(
@@ -753,7 +752,7 @@ export function moveNpcToTicketBooth(npc, startPosition, scene) {
     const shouldContinue = updateMovement(npc, waypoints, state, animationData, scene);
     if (!shouldContinue) {
       clearInterval(movementInterval);
-      console.log("NPC movement completed");
+      // console.log("NPC movement completed");
     }
   }, 16);
 
@@ -763,7 +762,7 @@ export function moveNpcToTicketBooth(npc, startPosition, scene) {
         animationData.mixer.stopAllAction();
       }
       clearInterval(movementInterval);
-      console.log("NPC movement stopped manually");
+      // console.log("NPC movement stopped manually");
     },
   };
 }
@@ -800,11 +799,11 @@ function setupAndAddModel(fbx, scene, position, rotation, resolve) {
 
   // Log animation status with more details
   if (fbx.animations && fbx.animations.length > 0) {
-    console.log(`Model has ${fbx.animations.length} animations`);
+    // console.log(`Model has ${fbx.animations.length} animations`);
     fbx.animations.forEach((anim, index) => {
-      console.log(
-        `Animation ${index}: Name=${anim.name}, Duration=${anim.duration}, Tracks=${anim.tracks.length}`
-      );
+      // console.log(
+      //   `Animation ${index}: Name=${anim.name}, Duration=${anim.duration}, Tracks=${anim.tracks.length}`
+      // );
     });
   } else {
     console.log(`Model has no animations`);
@@ -818,28 +817,4 @@ function setupAndAddModel(fbx, scene, position, rotation, resolve) {
 
   // Resolve the promise with the loaded model
   resolve(fbx);
-
-  // Add diagnostic function to the global scope for debugging
-  if (!window.diagNPC) {
-    window.diagNPC = function(npcIndex = 0) {
-      if (npcIndex >= 0 && npcIndex < allNPCModels.length) {
-        const npc = allNPCModels[npcIndex];
-        console.group("NPC Diagnostic Info");
-        console.log("NPC Model:", npc);
-        console.log("Animations:", npc.animations?.length || 0);
-        if (npc.animations) {
-          npc.animations.forEach((anim, i) => {
-            console.log(`Animation ${i}: ${anim.name}, Duration: ${anim.duration}`);
-          });
-        }
-        console.log("UserData:", npc.userData);
-        console.groupEnd();
-        return npc;
-      } else {
-        console.warn(`Invalid NPC index. There are ${allNPCModels.length} NPCs available.`);
-        return null;
-      }
-    };
-    console.log("Added diagNPC() function to window for debugging - call diagNPC() in console");
-  }
 }

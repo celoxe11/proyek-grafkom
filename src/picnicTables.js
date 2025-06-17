@@ -60,14 +60,11 @@ export function loadPicnicTable(scene, position) {
         scene.add(picnicTable);
         allPicnicTables.push(picnicTable);
         
-        console.log('Picnic table loaded at position:', position);
+        // console.log('Picnic table loaded at position:', position);
         
         resolve(picnicTable);
       },
-      (xhr) => {
-        // Loading progress
-        console.log(`Picnic table: ${(xhr.loaded / xhr.total * 100).toFixed(2)}% loaded`);
-      },
+      undefined, // No progress callback
       (error) => {
         console.error('Error loading picnic table:', error);
         reject(error);
