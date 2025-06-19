@@ -22,12 +22,27 @@ import {
   checkFenceCollisionMultiDirection,
 } from "./hedgeFences.js";
 import { loadTrees } from "./trees.js";
-import { loadNpcModel, moveNpcToTicketBooth } from "./npc.js";
+import {
+  loadNpcModel,
+  moveNpcToTicketBooth,
+  initializeNPCSystem,
+  getNPCStats,
+  getSittingPositionStatus,
+} from "./npc.js";
 import {
   loadPicnicTableGroup,
   checkPicnicTableCollision,
 } from "./picnicTables.js";
-import { loadParkCornerStreetLights, updateStreetLightsByTime, forceStreetLightsOn, toggleStreetLights, resetStreetLightOverride, isStreetLightOverridden, getAllLightObjects } from "./streetLight.js";
+import {
+  loadParkCornerStreetLights,
+  updateStreetLightsByTime,
+  forceStreetLightsOn,
+  toggleStreetLights,
+  resetStreetLightOverride,
+  isStreetLightOverridden,
+  getAllLightObjects,
+} from "./streetLight.js";
+import { loadFerrisWheel, checkFerrisWheelCollision } from "./ferrisWheel.js";
 
 function showWarning(message) {
   const warningContainer = document.getElementById("warning-container");
@@ -190,6 +205,7 @@ export function initGame() {
         <div class="sidebar-content status-container">
           <div id="time-indicator">Time: Day</div>
           <div id="position-indicator">Position: X: 0, Y: 0, Z: 0</div>
+          <div id="npc-counter">NPCs: 0/7</div>
           <div id="light-override-indicator" style="color: #ffaa00; display: none;">🔒 Lights Override: ON</div>
         </div>
       </div>
@@ -407,15 +423,15 @@ export function initGame() {
 
   scene.add(directionalLight);
 
-  // Test box for shadow visibility - positioned above ground
-  const box = new THREE.Mesh(
-    new THREE.BoxGeometry(10, 10, 10),
-    new THREE.MeshStandardMaterial({ color: 0x00ff00 })
-  );
-  box.position.set(20, 5, 20); // Position above ground
-  box.castShadow = true;
-  box.receiveShadow = true;
-  scene.add(box);
+  // // Test box for shadow visibility - positioned above ground
+  // const box = new THREE.Mesh(
+  //   new THREE.BoxGeometry(10, 10, 10),
+  //   new THREE.MeshStandardMaterial({ color: 0x00ff00 })
+  // );
+  // box.position.set(20, 5, 20); // Position above ground
+  // box.castShadow = true;
+  // box.receiveShadow = true;
+  // scene.add(box);
 
   // Add a ground plane to receive shadows
   const groundGeometry = new THREE.PlaneGeometry(400, 400);
@@ -437,6 +453,9 @@ export function initGame() {
   document.body.appendChild(positionIndicator);
 
   terrain.updateTextureSettings(renderer);
+
+  // Add variable to store ferris wheel mixer
+  let ferrisWheelMixer = null;
 
   // Remove loadModels function
   async function loadModels() {
@@ -505,21 +524,9 @@ export function initGame() {
         console.error("Failed to load picnic tables:", error);
       });
 
-    // Load NPC model and make it move to the ticket booth
-    loadNpcModel(scene, {
-      npcType: 0,
-      position: new THREE.Vector3(10, 0, 180),
-      rotation: new THREE.Euler(0, Math.PI, 0),
-    })
-      .then((npcModel) => {
-        console.log("NPC loaded!", npcModel);
-
-        // After NPC is loaded, make it move to the ticket booth
-        moveNpcToTicketBooth(npcModel, new THREE.Vector3(10, 0, 180), scene);
-      })
-      .catch((error) => {
-        console.error("Failed to load NPC model:", error);
-      });
+    // Replace the old single NPC loading with NPC system initialization
+    // Initialize NPC system (this will spawn the first NPC and manage subsequent spawns)
+    initializeNPCSystem(scene, celestialSystem); // Pass celestial system reference
 
     loadParkCornerStreetLights(scene, {
       parkSize: 150, // Distance from center to corner
@@ -530,11 +537,13 @@ export function initGame() {
       debugLightSphere: true, // Enable debug spheres
     })
       .then((streetLights) => {
-        console.log(`🎯 Street lights loading completed: ${streetLights.length} lights`);
+        console.log(
+          `🎯 Street lights loading completed: ${streetLights.length} lights`
+        );
         // Initialize lights based on current game time after loading
         setTimeout(() => {
           console.log("🔄 Initializing street lights based on game time...");
-          import('./streetLight.js').then(({ updateStreetLightsByTime }) => {
+          import("./streetLight.js").then(({ updateStreetLightsByTime }) => {
             // Get current hour from celestial system
             updateStreetLightsByTime(6); // Start at 6 AM (lights should be OFF)
           });
@@ -542,6 +551,23 @@ export function initGame() {
       })
       .catch((error) => {
         console.error("❌ Failed to load street lights:", error);
+      });
+
+    // Load the ferris wheel model
+    loadFerrisWheel(scene, {
+      position: new THREE.Vector3(4, -120, -100),
+      scale: 5,
+      rotation: new THREE.Euler(0, Math.PI / 2, 0),
+    })
+      .then(({ object, mixer }) => {
+        console.log("Ferris wheel loaded!", object);
+        ferrisWheelMixer = mixer; // Store the mixer for animation updates
+        if (mixer) {
+          console.log("Ferris wheel animation mixer ready");
+        }
+      })
+      .catch((error) => {
+        console.error("Failed to load ferris wheel:", error);
       });
   }
 
@@ -740,6 +766,11 @@ export function initGame() {
 
     const deltaTime = clock.getDelta();
 
+    // Update ferris wheel animation if mixer exists
+    if (ferrisWheelMixer) {
+      ferrisWheelMixer.update(deltaTime);
+    }
+
     // Store previous position for collision rollback
     const previousPosition = cameraHolder.position.clone();
 
@@ -749,6 +780,21 @@ export function initGame() {
 
     // Update mascot to follow the player
     updateMascotPosition(cameraHolder.position);
+
+    // Update NPC counter in sidebar
+    const npcStats = getNPCStats();
+    const sittingStatus = getSittingPositionStatus();
+    const npcCounter = document.getElementById("npc-counter");
+    if (npcCounter) {
+      const minutesUntilNext = Math.ceil(npcStats.nextSpawnIn / (60 * 1000));
+      npcCounter.innerHTML = `
+        NPCs: ${npcStats.currentCount}/${npcStats.maxCount}<br>
+        <small>Seats: ${sittingStatus.occupied}/${sittingStatus.total} occupied</small>
+      `;
+      if (npcStats.currentCount < npcStats.maxCount) {
+        npcCounter.innerHTML += `<br><small>(Next in ${minutesUntilNext}m)</small>`;
+      }
+    }
 
     // Get camera direction for mascot interaction
     const cameraDirection = new THREE.Vector3();
@@ -784,6 +830,19 @@ export function initGame() {
 
       // Show warning
       // showWarning("⚠️ You can't walk through the ticket booth! ⚠️");
+    }
+
+    // Check for ferris wheel collision
+    const ferrisWheelCollision = checkFerrisWheelCollision(
+      cameraHolder.position,
+      1.5
+    );
+    if (ferrisWheelCollision.collision) {
+      // If collision detected, revert to previous position
+      cameraHolder.position.copy(previousPosition);
+      
+      // Show warning
+      // showWarning("⚠️ You can't walk through the ferris wheel! ⚠️");
     }
 
     // Check for picnic table collision
@@ -912,26 +971,34 @@ export function initGame() {
       case "H":
         // Toggle shadow camera helper
         helper.visible = !helper.visible;
-        console.log(`Shadow helper ${helper.visible ? 'enabled' : 'disabled'}`);
+        console.log(`Shadow helper ${helper.visible ? "enabled" : "disabled"}`);
         break;
       case "l":
       case "L":
         // Toggle street lights
         console.log("🔄 Toggling street lights...");
         const newState = toggleStreetLights();
-        
+
         // Update override indicator
-        const overrideIndicator = document.getElementById('light-override-indicator');
+        const overrideIndicator = document.getElementById(
+          "light-override-indicator"
+        );
         if (overrideIndicator) {
-          overrideIndicator.style.display = 'block';
-          overrideIndicator.textContent = `🔒 Lights Override: ${newState ? 'FORCED ON' : 'FORCED OFF'}`;
+          overrideIndicator.style.display = "block";
+          overrideIndicator.textContent = `🔒 Lights Override: ${
+            newState ? "FORCED ON" : "FORCED OFF"
+          }`;
         }
-        
+
         // Also show debug information
         const allLights = getAllLightObjects();
         console.log(`Current light objects: ${allLights?.length || 0}`);
         allLights.forEach((light, i) => {
-          console.log(`Light ${i}: position=${light.position.toArray()}, visible=${light.rectAreaLight?.visible}, intensity=${light.rectAreaLight?.intensity}`);
+          console.log(
+            `Light ${i}: position=${light.position.toArray()}, visible=${
+              light.rectAreaLight?.visible
+            }, intensity=${light.rectAreaLight?.intensity}`
+          );
         });
         break;
       case "r":
@@ -939,13 +1006,15 @@ export function initGame() {
         // Reset light override and restore time-based control
         console.log("🔓 Resetting street light override...");
         resetStreetLightOverride();
-        
+
         // Hide override indicator
-        const resetOverrideIndicator = document.getElementById('light-override-indicator');
+        const resetOverrideIndicator = document.getElementById(
+          "light-override-indicator"
+        );
         if (resetOverrideIndicator) {
-          resetOverrideIndicator.style.display = 'none';
+          resetOverrideIndicator.style.display = "none";
         }
-        
+
         // Immediately update lights based on current time
         setTimeout(() => {
           updateStreetLightsByTime(celestialSystem.gameHour);
@@ -1081,4 +1150,3 @@ export function initGame() {
     }
   });
 }
-
