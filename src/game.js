@@ -15,15 +15,13 @@ import {
   checkTicketBoothCollision,
   isLookingAtMascot,
   getMascotDialog,
-} from "./ticketBooth.js";
+} from "./objects/ticketBooth.js";
 import {
   loadHedgeFences,
   checkFenceCollisionMultiDirection,
-} from "./hedgeFences.js";
-import { loadTrees } from "./trees.js";
+} from "./objects/hedgeFences.js";
+import { loadTrees } from "./objects/trees.js";
 import {
-  loadNpcModel,
-  moveNpcToTicketBooth,
   initializeNPCSystem,
   getNPCStats,
   getSittingPositionStatus,
@@ -31,15 +29,17 @@ import {
 import {
   loadPicnicTableGroup,
   checkPicnicTableCollision,
-} from "./picnicTables.js";
+} from "./objects/picnicTables.js";
 import {
   loadParkCornerStreetLights,
   updateStreetLightsByTime,
   toggleStreetLights,
   resetStreetLightOverride,
-} from "./streetLight.js";
-import { loadFerrisWheel, checkFerrisWheelCollision } from "./ferrisWheel.js";
-
+} from "./objects/streetLight.js";
+import {
+  loadFerrisWheel,
+  checkFerrisWheelCollision,
+} from "./objects/ferrisWheel.js";
 
 // Fungsi showWarning dari file pertama, sudah sangat baik.
 function showWarning(message) {
@@ -91,6 +91,7 @@ const SIDEBAR_HTML_CONTENT = `
     <div class="sidebar-section-content">
       <ul class="item-list" id="placeable-item-list" tabindex="0">
         <li data-type="merry_go_round" class="placeable-item">🎠 Merry Go Round</li>
+        <li data-type="swings" class="placeable-item">⛓️ Swing</li>
       </ul>
     </div>
   </div>
@@ -102,10 +103,22 @@ const SIDEBAR_CSS_STYLES = `#game-sidebar { box-sizing: border-box; padding: 0; 
 export function initGame() {
   // ─── Tutorial & Root Setup (Struktur dari File 1) ──────────────────────
   const tutorial = new TutorialManager();
-  tutorial.addStep("Tekan <Tab> untuk membuka sidebar kontrol",(e) => e.key === "Tab");
-  tutorial.addStep("Klik item di sidebar untuk mode penempatan",(e) => e.type === "click" && e.target.closest(".placeable-item"));
-  tutorial.addStep("Tekan <Enter> untuk meletakkan benda",(e) => e.key === "Enter");
-  tutorial.addStep("Tekan <E> untuk berinteraksi dengan objek",(e) => e.key.toLowerCase() === "e");
+  tutorial.addStep(
+    "Tekan <Tab> untuk membuka sidebar kontrol",
+    (e) => e.key === "Tab"
+  );
+  tutorial.addStep(
+    "Klik item di sidebar untuk mode penempatan",
+    (e) => e.type === "click" && e.target.closest(".placeable-item")
+  );
+  tutorial.addStep(
+    "Tekan <Enter> untuk meletakkan benda",
+    (e) => e.key === "Enter"
+  );
+  tutorial.addStep(
+    "Tekan <E> untuk berinteraksi dengan objek",
+    (e) => e.key.toLowerCase() === "e"
+  );
 
   const appElement = document.querySelector("#app");
   if (appElement) appElement.innerHTML = "";
@@ -114,7 +127,12 @@ export function initGame() {
   // ─── Scene & Renderer Setup (Digabungkan & Dioptimalkan) ───────────────
   const scene = new THREE.Scene();
   scene.background = new THREE.Color("#87CEEB");
-  const camera = new THREE.PerspectiveCamera(75,window.innerWidth / window.innerHeight,0.1,20000);
+  const camera = new THREE.PerspectiveCamera(
+    75,
+    window.innerWidth / window.innerHeight,
+    0.1,
+    20000
+  );
   const cameraHolder = new THREE.Object3D();
   cameraHolder.position.set(4, 7, 170);
   cameraHolder.add(camera);
@@ -137,12 +155,24 @@ export function initGame() {
   const terrain = new Terrain(scene);
   terrain.name = "ground";
   terrain.updateTextureSettings(renderer);
-  // MERGE: Tambahkan variabel mixer untuk Ferris Wheel dari File 2
   let ferrisWheelMixer = null;
 
-  const playerControls = new PlayerControls(camera,cameraHolder,renderer.domElement);
-  const objectPlacer = new ObjectPlacer(scene, camera, cameraHolder, placedObjects);
-  const interactionManager = new InteractionManager(camera,scene,placedObjects);
+  const playerControls = new PlayerControls(
+    camera,
+    cameraHolder,
+    renderer.domElement
+  );
+  const objectPlacer = new ObjectPlacer(
+    scene,
+    camera,
+    cameraHolder,
+    placedObjects
+  );
+  const interactionManager = new InteractionManager(
+    camera,
+    scene,
+    placedObjects
+  );
 
   // ─── Lighting (Digabungkan & Dioptimalkan) ─────────────────────────────
   const hemisphereLight = new THREE.HemisphereLight(0xffffff, 0x444444, 1.0);
@@ -188,8 +218,10 @@ export function initGame() {
   mapPanel.style.cssText = `position: fixed; top: 20px; right: 20px; width: 200px; height: 200px; background: rgba(0, 0, 0, 0.7); border-radius: 8px; padding: 8px; z-index: 1000; border: 1px solid rgba(255, 255, 255, 0.3); backdrop-filter: blur(5px);`;
   mapPanel.classList.add("game-ui-element");
   const mapCanvas = document.createElement("canvas");
-  mapCanvas.width = 184; mapCanvas.height = 184;
-  mapCanvas.style.background = "#1a1a1a"; mapCanvas.style.borderRadius = "4px";
+  mapCanvas.width = 184;
+  mapCanvas.height = 184;
+  mapCanvas.style.background = "#1a1a1a";
+  mapCanvas.style.borderRadius = "4px";
   mapPanel.appendChild(mapCanvas);
   document.body.appendChild(mapPanel);
   const mapCtx = mapCanvas.getContext("2d");
@@ -206,7 +238,7 @@ export function initGame() {
   mascotDialog.style.cssText = `position: fixed; bottom: 50px; left: 50%; transform: translateX(-50%); background-color: rgba(255, 255, 255, 0.9); color: #333; padding: 15px 25px; border-radius: 10px; display: none; z-index: 1000; font-size: 18px; max-width: 80%; box-shadow: 0 0 15px rgba(0,0,0,0.4); border: 2px solid #00aaff;`;
   mascotDialog.classList.add("game-ui-element");
   document.body.appendChild(mascotDialog);
-  
+
   let isShowingMascotDialog = false;
   let mascotDialogTimeout = null;
 
@@ -215,38 +247,107 @@ export function initGame() {
   menuOverlay.classList.add("game-ui-element");
   const menuContainer = document.createElement("div");
   menuContainer.style.cssText = `display: flex; flex-direction: column; gap: 20px; min-width: 200px;`;
-  const menuButtons = [{ text: "Settings", action: () => { settingsOverlay.style.display = "flex"; } }, { text: "Help", action: () => console.log("Help clicked") }, { text: "Close Game", action: () => (window.location.href = "/") }, { text: "Back", action: () => toggleMenu(false) }, ];
-  menuButtons.forEach(({ text, action }) => { const button = document.createElement("button"); button.textContent = text; button.style.cssText = `padding: 15px 30px; font-size: 18px; border: none; border-radius: 8px; background: linear-gradient(135deg, rgba(26, 71, 42, 0.9), rgba(40, 114, 51, 0.95)); color: #98ff98; cursor: pointer; transition: all 0.3s ease; backdrop-filter: blur(5px); border: 1px solid rgba(152, 255, 152, 0.3);`; button.onmouseover = () => { button.style.transform = "scale(1.05)"; button.style.background = "linear-gradient(135deg, rgba(40, 114, 51, 0.95), rgba(56, 161, 71, 0.95))"; }; button.onmouseout = () => { button.style.transform = "scale(1)"; button.style.background = "linear-gradient(135deg, rgba(26, 71, 42, 0.9), rgba(40, 114, 51, 0.95))"; }; button.onclick = action; menuContainer.appendChild(button); });
-  menuOverlay.appendChild(menuContainer); document.body.appendChild(menuOverlay);
-  const settingsOverlay = document.createElement("div"); settingsOverlay.style.cssText = `position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.8); display: none; justify-content: center; align-items: center; z-index: 3000; color: white; font-size: 20px;`; settingsOverlay.classList.add("game-ui-element"); settingsOverlay.innerHTML = `<div style="background: rgba(0,255,136,0.1); border: 1px solid #00ff88; padding: 30px; border-radius: 10px;"> <h2>Settings</h2> <p>Coming soon...</p> <button id="close-settings-btn" style="margin-top: 20px; padding: 10px 20px;">Close</button> </div>`; document.body.appendChild(settingsOverlay); document.getElementById("close-settings-btn").onclick = () => { settingsOverlay.style.display = "none"; };
-  function toggleMenu(show) { menuOverlay.style.display = show ? "flex" : "none"; if (show) { document.exitPointerLock(); } else { if (!objectPlacer.active) { renderer.domElement.requestPointerLock(); } } }
-  
+  const menuButtons = [
+    {
+      text: "Settings",
+      action: () => {
+        settingsOverlay.style.display = "flex";
+      },
+    },
+    { text: "Help", action: () => console.log("Help clicked") },
+    { text: "Close Game", action: () => (window.location.href = "/") },
+    { text: "Back", action: () => toggleMenu(false) },
+  ];
+  menuButtons.forEach(({ text, action }) => {
+    const button = document.createElement("button");
+    button.textContent = text;
+    button.style.cssText = `padding: 15px 30px; font-size: 18px; border: none; border-radius: 8px; background: linear-gradient(135deg, rgba(26, 71, 42, 0.9), rgba(40, 114, 51, 0.95)); color: #98ff98; cursor: pointer; transition: all 0.3s ease; backdrop-filter: blur(5px); border: 1px solid rgba(152, 255, 152, 0.3);`;
+    button.onmouseover = () => {
+      button.style.transform = "scale(1.05)";
+      button.style.background =
+        "linear-gradient(135deg, rgba(40, 114, 51, 0.95), rgba(56, 161, 71, 0.95))";
+    };
+    button.onmouseout = () => {
+      button.style.transform = "scale(1)";
+      button.style.background =
+        "linear-gradient(135deg, rgba(26, 71, 42, 0.9), rgba(40, 114, 51, 0.95))";
+    };
+    button.onclick = action;
+    menuContainer.appendChild(button);
+  });
+  menuOverlay.appendChild(menuContainer);
+  document.body.appendChild(menuOverlay);
+  const settingsOverlay = document.createElement("div");
+  settingsOverlay.style.cssText = `position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.8); display: none; justify-content: center; align-items: center; z-index: 3000; color: white; font-size: 20px;`;
+  settingsOverlay.classList.add("game-ui-element");
+  settingsOverlay.innerHTML = `<div style="background: rgba(0,255,136,0.1); border: 1px solid #00ff88; padding: 30px; border-radius: 10px;"> <h2>Settings</h2> <p>Coming soon...</p> <button id="close-settings-btn" style="margin-top: 20px; padding: 10px 20px;">Close</button> </div>`;
+  document.body.appendChild(settingsOverlay);
+  document.getElementById("close-settings-btn").onclick = () => {
+    settingsOverlay.style.display = "none";
+  };
+  function toggleMenu(show) {
+    menuOverlay.style.display = show ? "flex" : "none";
+    if (show) {
+      document.exitPointerLock();
+    } else {
+      if (!objectPlacer.active) {
+        renderer.domElement.requestPointerLock();
+      }
+    }
+  }
+
   // ─── Loading Objek Statis (Digabungkan) ─────────────────────────
   async function loadStaticScenery() {
-      loadTicketBooth(scene, { position: new THREE.Vector3(35, 0, 137.9), scale: 5, rotation: new THREE.Euler(0, Math.PI, 0) })
-          .then(() => {
-              console.log("Ticket booth loaded!");
-              setMascotFollowing(true, cameraHolder);
-          });
+    loadTicketBooth(scene, {
+      position: new THREE.Vector3(35, 0, 137.9),
+      scale: 5,
+      rotation: new THREE.Euler(0, Math.PI, 0),
+    }).then(() => {
+      console.log("Ticket booth loaded!");
+      setMascotFollowing(true, cameraHolder);
+    });
 
-      loadHedgeFences(scene, { centerPoint: new THREE.Vector3(0, 0, 0), distance: 150, fenceHeight: 10, spacing: 15, modelPath: "./simple_brick_fence.glb" });
-      loadTrees(scene, { centerPoint: new THREE.Vector3(0, 0, 0), parkDistance: 200, treeDistance: 200, treeSpacing: 150, treeScale: 0.7, modelPath: "./quick_treeit_tree.glb" });
-      loadPicnicTableGroup(scene, { basePosition: new THREE.Vector3(-36.3, 0, 128.6), count: 3, spacing: 30, direction: "left" });
-      
-      // MERGE: Menggunakan sistem NPC dari File 2
-      initializeNPCSystem(scene, celestialSystem); 
-      
-      loadParkCornerStreetLights(scene, { parkSize: 150, scale: 3, lightIntensity: 25, lightDistance: 100 })
-          .then(() => {
-              setTimeout(() => updateStreetLightsByTime(6), 1000); // Start at 6 AM
-          });
+    loadHedgeFences(scene, {
+      centerPoint: new THREE.Vector3(0, 0, 0),
+      distance: 150,
+      fenceHeight: 10,
+      spacing: 15,
+      modelPath: "./simple_brick_fence.glb",
+    });
+    // loadTrees(scene, {
+    //   centerPoint: new THREE.Vector3(0, 0, 0),
+    //   parkDistance: 200,
+    //   treeDistance: 200,
+    //   treeSpacing: 150,
+    //   treeScale: 0.7,
+    //   modelPath: "./quick_treeit_tree.glb",
+    // });
+    loadPicnicTableGroup(scene, {
+      basePosition: new THREE.Vector3(-36.3, 0, 128.6),
+      count: 3,
+      spacing: 30,
+      direction: "left",
+    });
 
-      // MERGE: Tambahkan loading Ferris Wheel dengan mixer dari File 2
-      loadFerrisWheel(scene, { position: new THREE.Vector3(4, -120, -100), scale: 5, rotation: new THREE.Euler(0, Math.PI / 2, 0) })
-          .then(({ mixer }) => {
-              console.log("Ferris wheel loaded!");
-              ferrisWheelMixer = mixer; // Simpan mixer untuk animasi
-          });
+    // initializeNPCSystem(scene, celestialSystem);
+
+    loadParkCornerStreetLights(scene, {
+      parkSize: 150,
+      scale: 3,
+      lightIntensity: 25,
+      lightDistance: 100,
+    }).then(() => {
+      setTimeout(() => updateStreetLightsByTime(6), 1000); // Start at 6 AM
+    });
+
+    loadFerrisWheel(scene, {
+      position: new THREE.Vector3(4, -120, -100),
+      scale: 5,
+      rotation: new THREE.Euler(0, Math.PI / 2, 0),
+    }).then(({ mixer }) => {
+      console.log("Ferris wheel loaded!");
+      ferrisWheelMixer = mixer;
+    });
   }
   loadStaticScenery();
 
@@ -264,22 +365,22 @@ export function initGame() {
     if (objectPlacer.active) {
       objectPlacer.updatePreviewTransform();
     }
-    
-    // MERGE: Update animasi Ferris Wheel dari File 2
+
     if (ferrisWheelMixer) {
-        ferrisWheelMixer.update(deltaTime);
+      ferrisWheelMixer.update(deltaTime);
     }
-    
-    // MERGE: Update posisi mascot
+
     updateMascotPosition(cameraHolder.position);
 
-    // Update setiap objek yang ditempatkan
     for (const obj of placedObjects) {
       if (obj.update) obj.update(deltaTime);
     }
 
     // Deteksi tabrakan dengan objek yang ditempatkan
-    playerCollider.setFromCenterAndSize(cameraHolder.position.clone().add(new THREE.Vector3(0, -0.5, 0)), new THREE.Vector3(1, 1.8, 1));
+    playerCollider.setFromCenterAndSize(
+      cameraHolder.position.clone().add(new THREE.Vector3(0, -0.5, 0)),
+      new THREE.Vector3(1, 1.8, 1)
+    );
     let isCollidingWithPlacedObject = false;
     for (const obj of placedObjects) {
       if (obj.checkCollision && obj.checkCollision(playerCollider)) {
@@ -291,56 +392,62 @@ export function initGame() {
       playerControls.rollbackPosition();
     }
 
-    // MERGE: Deteksi tabrakan dengan objek statis (digabungkan dari kedua file)
-    if (checkFenceCollisionMultiDirection(cameraHolder.position, 2.0).collision ||
-        checkTicketBoothCollision(cameraHolder.position, 1.5) ||
-        checkPicnicTableCollision(cameraHolder.position, 1.0).collision ||
-        checkFerrisWheelCollision(cameraHolder.position, 1.5).collision) 
-    {
-        cameraHolder.position.copy(previousPosition);
+    if (
+      checkFenceCollisionMultiDirection(cameraHolder.position, 2.0).collision ||
+      checkTicketBoothCollision(cameraHolder.position, 1.5) ||
+      checkPicnicTableCollision(cameraHolder.position, 1.0).collision ||
+      checkFerrisWheelCollision(cameraHolder.position, 1.5).collision
+    ) {
+      cameraHolder.position.copy(previousPosition);
     }
-    
-    // MERGE: Update lighting berdasarkan waktu
+
     hemisphereLight.intensity = timeData.isDaytime ? 1.0 : 0.2;
     updateStreetLightsByTime(timeData.gameHour);
-    
-    // Update interaksi dan UI
-    interactionManager.update(cameraHolder.position);
+
+    // PERBAIKAN KUNCI 1: Panggil `update` dan simpan hasilnya untuk digunakan di UI prompt
+    const nearbyInteractable = interactionManager.update(cameraHolder.position);
     updateMap();
-    
-    // MERGE: Update prompt interaksi yang lebih dinamis
+
     const cameraDirection = new THREE.Vector3();
     camera.getWorldDirection(cameraDirection);
-    const nearbyInteractable = interactionManager.getNearbyObject(cameraHolder.position);
 
-    if (isLookingAtMascot(cameraHolder.position, cameraDirection) && !isShowingMascotDialog) {
-        interactionPrompt.textContent = "Tekan F untuk Bicara";
-        interactionPrompt.style.display = "block";
+    // Logika UI prompt sekarang menggunakan hasil dari `update` di atas
+    if (
+      isLookingAtMascot(cameraHolder.position, cameraDirection) &&
+      !isShowingMascotDialog
+    ) {
+      interactionPrompt.textContent = "Tekan F untuk Bicara";
+      interactionPrompt.style.display = "block";
     } else if (nearbyInteractable) {
-        interactionPrompt.textContent = `Tekan E untuk berinteraksi`;
-        interactionPrompt.style.display = "block";
+      interactionPrompt.textContent = `Tekan E untuk berinteraksi`;
+      interactionPrompt.style.display = "block";
     } else {
-        interactionPrompt.style.display = "none";
+      interactionPrompt.style.display = "none";
     }
 
-    // MERGE: Update UI di Sidebar dengan detail dari File 2
-    document.getElementById("position-indicator-value").textContent = `X: ${cameraHolder.position.x.toFixed(1)}, Y: ${cameraHolder.position.y.toFixed(1)}, Z: ${cameraHolder.position.z.toFixed(1)}`;
+    document.getElementById(
+      "position-indicator-value"
+    ).textContent = `X: ${cameraHolder.position.x.toFixed(
+      1
+    )}, Y: ${cameraHolder.position.y.toFixed(
+      1
+    )}, Z: ${cameraHolder.position.z.toFixed(1)}`;
     const timeIndicatorValue = document.getElementById("time-indicator-value");
-    if(timeIndicatorValue) timeIndicatorValue.textContent = `${timeData.timeString} ${timeData.period}`;
+    if (timeIndicatorValue)
+      timeIndicatorValue.textContent = `${timeData.timeString} ${timeData.period}`;
     const timeIcon = document.getElementById("time-icon");
-    if(timeIcon) timeIcon.textContent = timeData.isDaytime ? '☀️' : '🌙';
+    if (timeIcon) timeIcon.textContent = timeData.isDaytime ? "☀️" : "🌙";
 
-    // MERGE: Update NPC counter dengan info detail dari File 2
     const npcCounter = document.getElementById("npc-counter");
     if (npcCounter) {
-        const npcStats = getNPCStats();
-        const sittingStatus = getSittingPositionStatus();
-        let npcText = `${npcStats.currentCount}/${npcStats.maxCount} | Seats: ${sittingStatus.occupied}/${sittingStatus.total}`;
-        if (npcStats.currentCount < npcStats.maxCount) {
-            const minutesUntilNext = Math.ceil(npcStats.nextSpawnIn / (60 * 1000));
-            npcText += `<br>Next in ${minutesUntilNext}m`;
-        }
-        npcCounter.innerHTML = npcText;
+      const npcStats = getNPCStats();
+      const sittingStatus = getSittingPositionStatus();
+      let npcText = `${npcStats.currentCount}/${npcStats.maxCount} | Seats: ${sittingStatus.occupied}/${sittingStatus.total}`;
+      if (npcStats.currentCount < npcStats.maxCount) {
+        const minutesUntilNext = Math.ceil(npcStats.nextSpawnIn / (60 * 1000));
+        npcText += `<br>Next in ${minutesUntilNext}m`;
+      }
+      npcCounter.innerHTML = npcText;
     }
 
     renderer.render(scene, camera);
@@ -348,103 +455,154 @@ export function initGame() {
   }
 
   // ─── Event Listeners (Digabungkan & Disempurnakan) ─────────────────────
-  function updateMap() { mapCtx.fillStyle = "#1a1a1a"; mapCtx.fillRect(0, 0, mapCanvas.width, mapCanvas.height); const mapScale = 3; const centerX = mapCanvas.width / 2; const centerZ = mapCanvas.height / 2; const pos = cameraHolder.position; mapCtx.fillStyle = "#ffffff"; mapCtx.beginPath(); mapCtx.arc( centerX + pos.x / mapScale, centerZ + pos.z / mapScale, 3, 0, Math.PI * 2 ); mapCtx.fill(); const dir = new THREE.Vector3(); camera.getWorldDirection(dir); mapCtx.strokeStyle = "#ffffff"; mapCtx.beginPath(); mapCtx.moveTo(centerX + pos.x / mapScale, centerZ + pos.z / mapScale); mapCtx.lineTo( centerX + pos.x / mapScale + dir.x * 10, centerZ + pos.z / mapScale + dir.z * 10 ); mapCtx.stroke(); }
-  window.addEventListener("resize", () => { camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); });
+  function updateMap() {
+    mapCtx.fillStyle = "#1a1a1a";
+    mapCtx.fillRect(0, 0, mapCanvas.width, mapCanvas.height);
+    const mapScale = 3;
+    const centerX = mapCanvas.width / 2;
+    const centerZ = mapCanvas.height / 2;
+    const pos = cameraHolder.position;
+    mapCtx.fillStyle = "#ffffff";
+    mapCtx.beginPath();
+    mapCtx.arc(
+      centerX + pos.x / mapScale,
+      centerZ + pos.z / mapScale,
+      3,
+      0,
+      Math.PI * 2
+    );
+    mapCtx.fill();
+    const dir = new THREE.Vector3();
+    camera.getWorldDirection(dir);
+    mapCtx.strokeStyle = "#ffffff";
+    mapCtx.beginPath();
+    mapCtx.moveTo(centerX + pos.x / mapScale, centerZ + pos.z / mapScale);
+    mapCtx.lineTo(
+      centerX + pos.x / mapScale + dir.x * 10,
+      centerZ + pos.z / mapScale + dir.z * 10
+    );
+    mapCtx.stroke();
+  }
+  window.addEventListener("resize", () => {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+  });
 
   document.addEventListener("keydown", async (event) => {
     tutorial.completeStep(event);
 
     if (event.key === "Escape") {
-      if (objectPlacer.active) { objectPlacer.cancelPlacement(); return; }
+      if (objectPlacer.active) {
+        objectPlacer.cancelPlacement();
+        return;
+      }
       toggleMenu(menuOverlay.style.display !== "flex");
     }
 
     if (event.key === "Tab") {
       event.preventDefault();
       const isVisible = sidebar.style.left === "0px";
-      if (isVisible) { sidebar.style.left = `-${sidebar.offsetWidth}px`; sidebar.style.opacity = "0"; sidebar.style.visibility = "hidden"; } 
-      else { sidebar.style.left = "0px"; sidebar.style.opacity = "1"; sidebar.style.visibility = "visible"; }
+      if (isVisible) {
+        sidebar.style.left = `-${sidebar.offsetWidth}px`;
+        sidebar.style.opacity = "0";
+        sidebar.style.visibility = "hidden";
+      } else {
+        sidebar.style.left = "0px";
+        sidebar.style.opacity = "1";
+        sidebar.style.visibility = "visible";
+      }
     }
 
     if (event.key === "Enter" && objectPlacer.active) {
-        const placedObject = await objectPlacer.confirmPlacement();
-        if (placedObject) {
-          placedObjects.push(placedObject);
-          if (placedObject.model && placedObject.onInteraction) {
-            interactionManager.addInteractableObject(placedObject.model, placedObject.name, () => {
+      const placedObject = await objectPlacer.confirmPlacement();
+      if (placedObject) {
+        placedObjects.push(placedObject);
+        if (placedObject.model && placedObject.onInteraction) {
+          interactionManager.addInteractableObject(
+            placedObject.model,
+            placedObject.name,
+            () => {
               placedObject.onInteraction();
-            });
-          }
+            }
+          );
         }
+      }
     }
 
+    // Tombol 'F' khusus untuk berbicara dengan maskot
     if (event.key.toLowerCase() === "f") {
       const cameraDirection = new THREE.Vector3();
       camera.getWorldDirection(cameraDirection);
 
-      // Prioritaskan interaksi dengan mascot jika sedang dilihat
-      if (isLookingAtMascot(cameraHolder.position, cameraDirection) && !isShowingMascotDialog) {
-          mascotDialog.textContent = getMascotDialog();
-          mascotDialog.style.display = "block";
-          isShowingMascotDialog = true;
-          
-          if (mascotDialogTimeout) clearTimeout(mascotDialogTimeout);
-          mascotDialogTimeout = setTimeout(() => {
-              mascotDialog.style.display = "none";
-              isShowingMascotDialog = false;
-          }, 3000);
-          return;
+      if (
+        isLookingAtMascot(cameraHolder.position, cameraDirection) &&
+        !isShowingMascotDialog
+      ) {
+        mascotDialog.textContent = getMascotDialog();
+        mascotDialog.style.display = "block";
+        isShowingMascotDialog = true;
+
+        if (mascotDialogTimeout) clearTimeout(mascotDialogTimeout);
+        mascotDialogTimeout = setTimeout(() => {
+          mascotDialog.style.display = "none";
+          isShowingMascotDialog = false;
+        }, 3000);
+      }
     }
 
-    // MERGE: Logika interaksi 'E' yang disempurnakan
+    // Tombol 'E' untuk berinteraksi dengan objek lain
     if (event.key.toLowerCase() === "e") {
-        const cameraDirection = new THREE.Vector3();
-        camera.getWorldDirection(cameraDirection);
-        
-        return; // Hentikan proses jika berinteraksi dengan mascot
-      }
-      
-      // Jika tidak, proses interaksi dengan objek lain via InteractionManager
-      const nearby = interactionManager.getNearbyObject(cameraHolder.position);
+      // PERBAIKAN KUNCI 2: Gunakan `update` untuk mencari objek, bukan `getNearbyObject`
+      const nearby = interactionManager.update(cameraHolder.position);
       if (nearby) {
+        // Jika ada, jalankan fungsi interaksinya
         interactionManager.handleInteraction(nearby);
       }
     }
 
-    // MERGE: Event listener untuk debug dan kontrol lampu dari File 2
+    // Event listener untuk debug dan kontrol lampu (sudah benar)
     switch (event.key.toLowerCase()) {
-        case 'h':
-            shadowHelper.visible = !shadowHelper.visible;
-            break;
-        case 'l':
-            const newState = toggleStreetLights();
-            const lightOverrideRow = document.getElementById('light-override-status-row');
-            const lightOverrideIndicator = document.getElementById('light-override-indicator');
-            if(lightOverrideRow && lightOverrideIndicator) {
-                lightOverrideRow.style.display = 'flex';
-                lightOverrideIndicator.textContent = newState ? 'FORCED ON' : 'FORCED OFF';
-            }
-            break;
-        case 'r':
-            resetStreetLightOverride();
-            const resetRow = document.getElementById('light-override-status-row');
-            if(resetRow) {
-                resetRow.style.display = 'none';
-            }
-            break;
+      case "h":
+        shadowHelper.visible = !shadowHelper.visible;
+        break;
+      case "l":
+        const newState = toggleStreetLights();
+        const lightOverrideRow = document.getElementById(
+          "light-override-status-row"
+        );
+        const lightOverrideIndicator = document.getElementById(
+          "light-override-indicator"
+        );
+        if (lightOverrideRow && lightOverrideIndicator) {
+          lightOverrideRow.style.display = "flex";
+          lightOverrideIndicator.textContent = newState
+            ? "FORCED ON"
+            : "FORCED OFF";
+        }
+        break;
+      case "r":
+        resetStreetLightOverride();
+        const resetRow = document.getElementById("light-override-status-row");
+        if (resetRow) {
+          resetRow.style.display = "none";
+        }
+        break;
     }
   });
 
-  document.getElementById("placeable-item-list").addEventListener("click", async (event) => {
-    const item = event.target.closest(".placeable-item");
-    if (!item) return;
+  document
+    .getElementById("placeable-item-list")
+    .addEventListener("click", async (event) => {
+      const item = event.target.closest(".placeable-item");
+      if (!item) return;
 
-    tutorial.completeStep(event);
-    const objectTypeKey = item.getAttribute("data-type");
-    if (objectTypeKey) {
-      await objectPlacer.startPlacement(objectTypeKey);
-    }
-  });
+      tutorial.completeStep(event);
+      const objectTypeKey = item.getAttribute("data-type");
+      if (objectTypeKey) {
+        await objectPlacer.startPlacement(objectTypeKey);
+      }
+    });
 
   // ─── Start Game ───────────────────────────────────────────────────────────
   tutorial.start();

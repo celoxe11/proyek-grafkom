@@ -1,10 +1,12 @@
 import * as THREE from "three";
 import { MerryGoRound } from "./objects/MerryGoRound";
+import { Swing  } from "./objects/Swing";
 
 // A "map" to easily select which object class to instantiate.
 // This makes the system easily extendable.
 const placeableObjectsMap = {
   merry_go_round: MerryGoRound,
+  swings: Swing,
   // 'bench': Bench, // Add other objects here later
 };
 
@@ -178,17 +180,14 @@ export class ObjectPlacer {
         this.allPlacedObjectsRef.push(finalObject);
 
         // ✅ Pendaftaran interaksi dilakukan setelah object berhasil dibuat dan dimuat
-        if (finalObject.name === "Merry Go Round" && this.interactionManager) {
-        this.interactionManager.addInteractableObject(
+        if (this.interactionManager) {
+          this.interactionManager.addInteractableObject(
             finalObject.model,
             finalObject.name,
-            () => {
-            finalObject.userData = finalObject.userData || {};
-            finalObject.userData.isSpinning = !finalObject.userData.isSpinning;
-            finalObject.userData.spinSpeed = finalObject.userData.isSpinning ? 0.05 : 0;
-            }
-        );
+            () => finalObject.onInteraction()
+          );
         }
+
 
         console.log(`${finalObject.name} has been placed successfully.`);
         return finalObject;
