@@ -8,7 +8,7 @@ export class Swing extends PlaceableObject {
   constructor(scene) {
     super(scene);
     this.name = "Swing";
-    this.modelPath = ""; // tidak digunakan karena model terpisah
+    this.modelPath = "";
     this.swingChairPath = "./swing/swing_chair.glb";
     this.swingHolderPath = "./swing/swing_holder.glb";
 
@@ -16,17 +16,15 @@ export class Swing extends PlaceableObject {
     this.chair = null;
     this.swingPivot = null;
 
-    this.swingSpeed = 0.02;
+    this.swingSpeed = 0.01;
     this.swingAngle = 0;
     this.swingDirection = 1;
     this.isSwinging = false;
+
+    this.swingSound = null; // 🔊 Tambahkan properti sound
   }
 
-  async load(
-    position = new THREE.Vector3(), 
-    scale = new THREE.Vector3(5, 5, 5), 
-    rotation = new THREE.Euler()
-  ) {
+  async load(position = new THREE.Vector3(), scale = new THREE.Vector3(5, 5, 5), rotation = new THREE.Euler()) {
     const [holderGltf, chairGltf] = await Promise.all([
       loader.loadAsync(this.swingHolderPath),
       loader.loadAsync(this.swingChairPath),
@@ -35,15 +33,11 @@ export class Swing extends PlaceableObject {
     this.holder = holderGltf.scene;
     this.chair = chairGltf.scene;
 
-    // Buat pivot dan tambahkan kursi ke dalamnya
     this.swingPivot = new THREE.Object3D();
     this.swingPivot.add(this.chair);
+    this.swingPivot.position.set(0, 2.5, 0);
+    this.chair.position.set(0, -2.5, 0);
 
-    // Set posisi pivot di atas kursi
-    this.swingPivot.position.set(0, 2.5, 0); // posisi gantungan
-    this.chair.position.set(0, -2.5, 0);     // geser kursi ke bawah dari gantungan
-
-    // Gabungkan semua
     const group = new THREE.Group();
     group.add(this.holder);
     group.add(this.swingPivot);
@@ -59,11 +53,17 @@ export class Swing extends PlaceableObject {
     this.createCollider();
     this.isLoaded = true;
 
+    // 🔊 Load swing sound effect
+    this.swingSound = new Audio('./sound_effect/swing_creak.mp3');
+    this.swingSound.loop = true;
+    this.swingSound.volume = 0.5;
+
     return group;
   }
 
   update(deltaTime) {
     super.update(deltaTime);
+
     if (this.isSwinging && this.swingPivot) {
       this.swingAngle += this.swingDirection * this.swingSpeed;
       if (Math.abs(this.swingAngle) > 0.5) this.swingDirection *= -1;
@@ -74,5 +74,18 @@ export class Swing extends PlaceableObject {
 
   onInteraction() {
     this.isSwinging = !this.isSwinging;
+
+    if (this.isSwinging) {
+      if (this.swingSound && this.swingSound.paused) {
+        this.swingSound.currentTime = 0;
+        this.swingSound.play().catch(err => console.warn("Swing sound blocked:", err));
+      }
+    } else {
+      if (this.swingSound && !this.swingSound.paused) {
+        this.swingSound.pause();
+        this.swingSound.currentTime = 0;
+      }
+    }
   }
 }
+

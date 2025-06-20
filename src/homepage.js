@@ -1,4 +1,6 @@
 import { initGame } from './game.js';
+import { AudioSettings } from './Setting.js';
+
 
 export function createHomepage() {
     const appElement = document.querySelector('#app');
@@ -146,17 +148,26 @@ export function createHomepage() {
         z-index: 1;
     `;
 
+    
+
     // Create buttons with handlers
     const buttons = [
-        { 
-            text: 'Play Now', 
+        {
+            text: 'Play Now',
             action: () => {
+                openingMusic.pause();
+                openingMusic.currentTime = 0;
+
+                gameMusic.play().catch(err => {
+                console.warn("Game music autoplay blocked:", err);
+                });
+
                 container.remove();
                 document.body.innerHTML = '<div id="app"></div>';
                 initGame();
             },
             gradient: 'linear-gradient(45deg, #ff6b6b, #ff8e8e)'
-        },
+            },
         { 
             text: 'Settings', 
             action: () => console.log('Settings clicked'),
@@ -174,6 +185,7 @@ export function createHomepage() {
         }
     ];
 
+
     buttons.forEach(({ text, action, gradient }) => {
         const button = document.createElement('button');
         button.textContent = text;
@@ -188,6 +200,34 @@ export function createHomepage() {
 
     // Add decorative elements
     addDecorativeElements(container);
+
+
+    // 🎵 Tambahkan background music
+        const openingMusic = new Audio('../public/sound_effect/Opening.mp3');
+        const gameMusic = new Audio('../public/sound_effect/Game_sound.mp3');
+
+        openingMusic.loop = true;
+        openingMusic.volume = 0.5;
+
+        gameMusic.loop = true;
+        gameMusic.volume = 0.5;
+        
+        const settings = new AudioSettings(openingMusic, gameMusic);
+
+       openingMusic.play().catch(err => {
+        console.warn("Autoplay gagal, akan coba play setelah klik:", err);
+
+        // 🌟 Dengarkan klik di mana pun lalu play opening
+        const unlock = () => {
+            openingMusic.play().catch(err => {
+            console.warn("Tetap gagal autoplay setelah klik:", err);
+            });
+            document.removeEventListener('click', unlock);
+        };
+
+        document.addEventListener('click', unlock);
+        });
+
 
     // Assemble page
     container.appendChild(titleContainer);

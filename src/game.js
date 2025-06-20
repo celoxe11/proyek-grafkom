@@ -21,6 +21,7 @@ import {
   checkFenceCollisionMultiDirection,
 } from "./objects/hedgeFences.js";
 import { loadTrees } from "./objects/trees.js";
+
 import {
   initializeNPCSystem,
   getNPCStats,
