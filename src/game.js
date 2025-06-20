@@ -25,7 +25,7 @@ import {
   initializeNPCSystem,
   getNPCStats,
   getSittingPositionStatus,
-} from "./npc.js";
+} from "./objects/npc.js";
 import {
   loadPicnicTableGroup,
   checkPicnicTableCollision,
@@ -228,7 +228,6 @@ export function initGame() {
 
   const interactionPrompt = document.createElement("div");
   interactionPrompt.id = "interaction-prompt";
-  interactionPrompt.textContent = "Tekan E untuk berinteraksi";
   interactionPrompt.style.cssText = `position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background-color: rgba(255, 255, 255, 0.8); color: #333; padding: 8px 15px; border-radius: 20px; display: none; z-index: 1000; font-size: 16px; font-weight: bold; box-shadow: 0 0 10px rgba(0,0,0,0.3);`;
   interactionPrompt.classList.add("game-ui-element");
   document.body.appendChild(interactionPrompt);
@@ -417,9 +416,6 @@ export function initGame() {
       !isShowingMascotDialog
     ) {
       interactionPrompt.textContent = "Tekan F untuk Bicara";
-      interactionPrompt.style.display = "block";
-    } else if (nearbyInteractable) {
-      interactionPrompt.textContent = `Tekan E untuk berinteraksi`;
       interactionPrompt.style.display = "block";
     } else {
       interactionPrompt.style.display = "none";
