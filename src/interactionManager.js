@@ -1,9 +1,10 @@
 import * as THREE from 'three';
 
 export class InteractionManager {
-    constructor(camera, scene) {
+    constructor(camera, scene, placedObjects = []) {
         this.camera = camera;
         this.scene = scene;
+        this.placedObjects = placedObjects; 
         this.interactableObjects = new Map(); // Map of objects and their interactions
         this.raycaster = new THREE.Raycaster();
         this.interactionDistance = 10; // Maximum distance for interaction
@@ -27,6 +28,27 @@ export class InteractionManager {
         `;
         document.body.appendChild(this.promptDiv);
     }
+
+    getNearbyObject(position) {
+        let closest = null;
+        let closestDistance = Infinity;
+
+        for (const obj of this.placedObjects) {
+            if (!obj.model || !obj.onInteraction) continue;
+
+            const objPos = new THREE.Vector3();
+            obj.model.getWorldPosition(objPos);
+
+            const distance = objPos.distanceTo(position);
+            if (distance < 5 && distance < closestDistance) { // 5 unit radius
+            closest = obj;
+            closestDistance = distance;
+            }
+        }
+
+        return closest;
+        }
+
 
     addInteractableObject(object, name, interaction) {
         this.interactableObjects.set(object, {

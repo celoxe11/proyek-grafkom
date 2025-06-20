@@ -1,80 +1,83 @@
 import * as THREE from "three";
 
 export class PlayerControls {
-  constructor(camera, cameraHolder, modelLoader, domElement) {
+  /**
+   * Menggabungkan fitur terbaik dari kedua versi.
+   * - Menggunakan model fisika (velocity, gravity, deltaTime) dari versi kedua untuk lompatan yang mulus.
+   * - Menghilangkan ketergantungan pada 'modelLoader' dan logika tumbukan internal.
+   * - Tumbukan sekarang ditangani oleh game loop utama yang memanggil 'rollbackPosition()'.
+   * - Menyederhanakan logika gerakan untuk menangani input WASD secara efisien.
+   */
+  constructor(camera, cameraHolder, domElement) {
     this.camera = camera;
     this.cameraHolder = cameraHolder;
-    this.modelLoader = modelLoader;
     this.domElement = domElement;
+
+    // State Kontrol
     this.keysPressed = {};
-    this.speed = 0.5;
     this.isLocked = false;
-    this.lastValidPosition = new THREE.Vector3();
-
-    // Mouse movement
-    this.euler = new THREE.Euler(0, 0, 0, 'YXZ');
+    
+    // Parameter Gerakan
+    this.speed = 0.5;
     this.mouseSpeed = 0.002;
+    this.euler = new THREE.Euler(0, 0, 0, "YXZ");
+    
+    // Parameter Fisika & Lompatan (Model dari file kedua, lebih baik)
+    this.velocity = new THREE.Vector3();
+    this.gravity = -20.0; // Gravitasi yang lebih terasa
+    this.jumpHeight = 8.0; // Kekuatan lompatan awal
+    this.isGrounded = true;
+    this.groundLevel = 7.0; // Ketinggian default pemain di tanah
+    
+    // Untuk Rollback Tumbukan
+    this.lastPosition = cameraHolder.position.clone();
 
-    // Setup event listeners
     this.setupMouseControl();
     this.setupKeyboardControl();
-
-    this.velocity = new THREE.Vector3();
-    this.gravity = -9.8;
-    this.jumpSpeed = 8;
-    this.isGrounded = true;
-    this.lastPosition = cameraHolder.position.clone();
   }
 
   setupMouseControl() {
-    // Click to start
-    this.domElement.addEventListener('click', () => {
+    // Fungsi ini identik di kedua file, jadi tidak ada konflik.
+    this.domElement.addEventListener("click", () => {
       if (!this.isLocked) {
         this.domElement.requestPointerLock();
       }
     });
 
-    // Handle pointer lock change
-    document.addEventListener('pointerlockchange', () => {
+    document.addEventListener("pointerlockchange", () => {
       this.isLocked = document.pointerLockElement === this.domElement;
     });
 
-    // Mouse movement handler
-    document.addEventListener('mousemove', (event) => {
+    document.addEventListener("mousemove", (event) => {
       if (!this.isLocked) return;
 
       const movementX = event.movementX || 0;
       const movementY = event.movementY || 0;
 
-      // Rotate camera holder (left/right)
+      // Rotasi horizontal (kiri/kanan) pada cameraHolder
       this.euler.y -= movementX * this.mouseSpeed;
-      // Rotate camera (up/down)
-      this.euler.x = Math.max(
-        -Math.PI / 2, // Look up limit
-        Math.min(
-          Math.PI / 2, // Look down limit
-          this.euler.x - movementY * this.mouseSpeed
-        )
-      );
+      
+      // Rotasi vertikal (atas/bawah) pada kamera, dengan batasan
+      this.euler.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, this.euler.x - movementY * this.mouseSpeed));
 
-      // Apply rotations
       this.cameraHolder.rotation.y = this.euler.y;
       this.camera.rotation.x = this.euler.x;
     });
   }
 
   setupKeyboardControl() {
-    document.addEventListener('keydown', (event) => {
+    document.addEventListener("keydown", (event) => {
       const key = event.key.toLowerCase();
       this.keysPressed[key] = true;
 
-      if (key === ' ' && this.isGrounded) {
-        this.velocity.y = this.jumpSpeed;
+      // Logika lompat dari file kedua, dipicu saat di darat
+      if (key === " " && this.isGrounded) {
+        this.velocity.y = this.jumpHeight;
         this.isGrounded = false;
       }
     });
 
-    document.addEventListener('keyup', (event) => {
+    document.addEventListener("keyup", (event) => {
       this.keysPressed[event.key.toLowerCase()] = false;
     });
   }
@@ -82,37 +85,55 @@ export class PlayerControls {
   update(deltaTime) {
     if (!this.isLocked) return;
 
+    // Simpan posisi terakhir SEBELUM bergerak, untuk rollback jika terjadi tumbukan.
     this.lastPosition.copy(this.cameraHolder.position);
 
-    // Movement direction
-    const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(this.cameraHolder.quaternion).setY(0).normalize();
-    const right = new THREE.Vector3(1, 0, 0).applyQuaternion(this.cameraHolder.quaternion).setY(0).normalize(); 
+    // --- Gerakan Horizontal (WASD) ---
+    const forward = new THREE.Vector3();
+    this.camera.getWorldDirection(forward);
+    forward.y = 0;
+    forward.normalize();
 
-    // Movement
-    if (this.keysPressed['w']) {
-      this.cameraHolder.position.addScaledVector(forward, this.speed);
+    const right = new THREE.Vector3().crossVectors(this.camera.up, forward).normalize();
+    
+    const moveDirection = new THREE.Vector3();
+    if (this.keysPressed["w"]) {
+      moveDirection.add(forward);
     }
-    if (this.keysPressed['s']) {
-      this.cameraHolder.position.addScaledVector(forward, -this.speed);
+    if (this.keysPressed["s"]) {
+      moveDirection.sub(forward);
     }
-    if (this.keysPressed['a']) {
-      this.cameraHolder.position.addScaledVector(right, -this.speed);
+    if (this.keysPressed["a"]) {
+      moveDirection.add(right);
     }
-    if (this.keysPressed['d']) {
-      this.cameraHolder.position.addScaledVector(right, this.speed);
+    if (this.keysPressed["d"]) { 
+      moveDirection.sub(right);
+    }
+    
+    // Normalisasi untuk kecepatan diagonal yang konsisten
+    if (moveDirection.length() > 0) {
+        moveDirection.normalize();
+        this.cameraHolder.position.addScaledVector(moveDirection, this.speed);
     }
 
+    // --- Gerakan Vertikal (Fisika & Lompatan) ---
+    // Terapkan gravitasi (berbasis deltaTime untuk konsistensi)
     this.velocity.y += this.gravity * deltaTime;
+    // Terapkan kecepatan vertikal ke posisi
     this.cameraHolder.position.y += this.velocity.y * deltaTime;
 
-    // Simple ground collision (example: y = 7 is ground level)
-    if (this.cameraHolder.position.y <= 7) {
-      this.cameraHolder.position.y = 7;
+    // Cek jika pemain menyentuh tanah
+    if (this.cameraHolder.position.y <= this.groundLevel) {
+      this.cameraHolder.position.y = this.groundLevel;
       this.velocity.y = 0;
       this.isGrounded = true;
     }
   }
 
+  /**
+   * Mengembalikan pemain ke posisi valid terakhir.
+   * Dipanggil dari luar (misal: game loop utama) setelah deteksi tumbukan.
+   */
   rollbackPosition() {
     this.cameraHolder.position.copy(this.lastPosition);
   }

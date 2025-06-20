@@ -1,641 +1,452 @@
 import * as THREE from "three";
-import Stats from 'three/examples/jsm/libs/stats.module.js';
-import { ModelLoader } from "./modelLoader.js";
+import Stats from "three/examples/jsm/libs/stats.module.js";
 import { CelestialSystem } from "./celestial.js";
 import { Terrain } from "./terrain.js";
 import { PlayerControls } from "./controls.js";
 import { ObjectPlacer } from "./objectPlacer.js";
-import { InteractionManager } from "./interactionManager.js"; 
-import { TutorialManager } from './tutorialManager.js';
+import { InteractionManager } from "./interactionManager.js";
+import { TutorialManager } from "./tutorialManager.js";
 
+// MERGE: Consolidated imports from both files
+import {
+  loadTicketBooth,
+  updateMascotPosition,
+  setMascotFollowing,
+  checkTicketBoothCollision,
+  isLookingAtMascot,
+  getMascotDialog,
+} from "./ticketBooth.js";
+import {
+  loadHedgeFences,
+  checkFenceCollisionMultiDirection,
+} from "./hedgeFences.js";
+import { loadTrees } from "./trees.js";
+import {
+  loadNpcModel,
+  moveNpcToTicketBooth,
+  initializeNPCSystem,
+  getNPCStats,
+  getSittingPositionStatus,
+} from "./npc.js";
+import {
+  loadPicnicTableGroup,
+  checkPicnicTableCollision,
+} from "./picnicTables.js";
+import {
+  loadParkCornerStreetLights,
+  updateStreetLightsByTime,
+  toggleStreetLights,
+  resetStreetLightOverride,
+} from "./streetLight.js";
+import { loadFerrisWheel, checkFerrisWheelCollision } from "./ferrisWheel.js";
+
+
+// Fungsi showWarning dari file pertama, sudah sangat baik.
 function showWarning(message) {
-  const warningContainer = document.getElementById('warning-container');
-  
-  const warning = document.createElement('div');
+  let warningContainer = document.getElementById("warning-container");
+  if (!warningContainer) {
+    warningContainer = document.createElement("div");
+    warningContainer.id = "warning-container";
+    warningContainer.className = "game-ui-element"; // Tambahkan class agar mudah dibersihkan
+    warningContainer.style.cssText = `position: fixed; top: 20%; left: 50%; transform: translateX(-50%); z-index: 2000; display: flex; flex-direction: column; align-items: center; pointer-events: none;`;
+    document.body.appendChild(warningContainer);
+  }
+
+  const warning = document.createElement("div");
   warning.textContent = message;
-  warning.style.cssText = `
-    background-color: rgba(255, 0, 0, 0.85);
-    color: white;
-    padding: 10px 20px;
-    margin-bottom: 10px;
-    border-radius: 6px;
-    font-weight: bold;
-    text-shadow: 1px 1px 3px black;
-    border: 1px solid white;
-    animation: fadeOut 1.5s ease-out 1.5s forwards;
-  `;
-
+  warning.style.cssText = `background-color: rgba(255, 0, 0, 0.85); color: white; padding: 10px 20px; margin-bottom: 10px; border-radius: 6px; font-weight: bold; text-shadow: 1px 1px 3px black; border: 1px solid white; animation: fadeOut 1.5s ease-out 1.5s forwards;`;
   warningContainer.appendChild(warning);
-
-  // Remove after animation
-  setTimeout(() => {
-    warning.remove();
-  }, 3000);
+  setTimeout(() => warning.remove(), 3000);
 }
 
+// Konstanta Sidebar dari file pertama (Struktur UI terbaik)
+const SIDEBAR_HTML_CONTENT = `
+  <div class="sidebar-section" id="game-status-section">
+    <div class="sidebar-section-header">
+      <h2>⏰ Game Status</h2>
+    </div>
+    <div class="sidebar-section-content">
+      <div class="status-row">
+        <span class="status-label"><span class="status-icon" id="time-icon">☀️</span> Time</span>
+        <span class="status-value time-indicator" id="time-indicator-value">Day</span>
+      </div>
+       <div class="status-row" id="light-override-status-row" style="display: none;">
+        <span class="status-label"><span class="status-icon" id="light-override-icon">💡</span> Light Status</span>
+        <span class="status-value" id="light-override-indicator" style="color: #ffaa00;">OVERRIDE</span>
+      </div>
+      <div class="status-row">
+        <span class="status-label"><span class="status-icon">📍</span> Position</span>
+        <span class="status-value" id="position-indicator-value">X: 0, Y: 0, Z: 0</span>
+      </div>
+      <div class="status-row" id="npc-counter-container">
+        <span class="status-label"><span class="status-icon">👥</span> NPCs</span>
+        <span class="status-value" id="npc-counter">0/7</span>
+      </div>
+    </div>
+  </div>
+  <div class="sidebar-section" id="placeable-items-section">
+    <div class="sidebar-section-header">
+      <h2><span class="header-icon">📦</span> Placeable Items</h2>
+    </div>
+    <div class="sidebar-section-content">
+      <ul class="item-list" id="placeable-item-list" tabindex="0">
+        <li data-type="merry_go_round" class="placeable-item">🎠 Merry Go Round</li>
+      </ul>
+    </div>
+  </div>
+`;
+
+// CSS Sidebar dari file pertama
+const SIDEBAR_CSS_STYLES = `#game-sidebar { box-sizing: border-box; padding: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 0; background: linear-gradient(135deg, rgba(26, 71, 42, 0.9), rgba(40, 114, 51, 0.95)); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); box-shadow: 5px 0 15px rgba(0, 0, 0, 0.2); color: white; font-family: 'Poppins', sans-serif; z-index: 1000; border-right: 1px solid rgba(255, 255, 255, 0.1); transition: all 0.3s ease; opacity: 0; visibility: hidden; } .sidebar-section { background-color: rgba(15, 30, 25, 0.85); border-radius: 10px; margin: 15px; border: 1px solid rgba(0, 255, 136, 0.25); box-shadow: 0 3px 10px rgba(0, 0, 0, 0.35); overflow: hidden; } .sidebar-section-header { padding: 12px 18px; background-color: rgba(0, 255, 136, 0.12); border-bottom: 1px solid rgba(0, 255, 136, 0.25); } .sidebar-section-header h2 { margin: 0; font-size: 1.1em; color: #00ff88; font-weight: 600; text-shadow: 0 0 5px rgba(0, 255, 136, 0.45); } .sidebar-section-content { padding: 18px; display: flex; flex-direction: column; gap: 12px; } .status-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid rgba(0, 255, 136, 0.1); } .status-row:last-child { border-bottom: none; } .status-label { font-size: 0.95em; color: rgba(220, 255, 240, 0.9); display: flex; align-items: center; } .status-icon { margin-right: 10px; font-size: 1.2em; } .status-value { font-size: 0.95em; color: #00ff88; font-weight: 500; text-align: right; } #npc-counter { font-size: 0.8em; } .item-list { list-style: none; padding: 10px; margin: 0; border: 1px solid rgba(0, 255, 136, 0.15); border-radius: 6px; background-color: rgba(0,0,0,0.1); } .item-list li { padding: 10px 12px; background-color: rgba(0, 255, 136, 0.08); border-radius: 4px; color: rgba(220, 255, 240, 0.9); cursor: pointer; transition: background-color 0.2s ease; } .item-list li:hover { background-color: rgba(0, 255, 136, 0.2); }`;
 
 export function initGame() {
-
+  // ─── Tutorial & Root Setup (Struktur dari File 1) ──────────────────────
   const tutorial = new TutorialManager();
-  tutorial.addStep("Tekan <Tab> untuk membuka sidebar kontrol", (e) => e.key === 'Tab');
-  tutorial.addStep("Tekan <1> untuk memulai penempatan benda", (e) => e.key === '1');
-  tutorial.addStep("Tekan <Enter> untuk meletakkan benda", (e) => e.key === 'Enter');
-  tutorial.addStep("Tekan <E> untuk berinteraksi dengan objek", (e) => e.key.toLowerCase() === 'e');
+  tutorial.addStep("Tekan <Tab> untuk membuka sidebar kontrol",(e) => e.key === "Tab");
+  tutorial.addStep("Klik item di sidebar untuk mode penempatan",(e) => e.type === "click" && e.target.closest(".placeable-item"));
+  tutorial.addStep("Tekan <Enter> untuk meletakkan benda",(e) => e.key === "Enter");
+  tutorial.addStep("Tekan <E> untuk berinteraksi dengan objek",(e) => e.key.toLowerCase() === "e");
 
-  tutorial.start();
-    // Clear any existing content
-    const appElement = document.querySelector('#app');
-    if (appElement) {
-        appElement.innerHTML = '';
-    }
+  const appElement = document.querySelector("#app");
+  if (appElement) appElement.innerHTML = "";
+  document.querySelectorAll(".game-ui-element").forEach((el) => el.remove());
 
-    // Create new game scene
-    const scene = new THREE.Scene();
-    scene.background = new THREE.Color('#87CEEB'); // Back to original sky blue
+  // ─── Scene & Renderer Setup (Digabungkan & Dioptimalkan) ───────────────
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color("#87CEEB");
+  const camera = new THREE.PerspectiveCamera(75,window.innerWidth / window.innerHeight,0.1,20000);
+  const cameraHolder = new THREE.Object3D();
+  cameraHolder.position.set(4, 7, 170);
+  cameraHolder.add(camera);
+  scene.add(cameraHolder);
 
-    const stats = new Stats();
-    stats.showPanel(0);
-    document.body.appendChild(stats.dom);
+  const renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.physicallyCorrectLights = false;
+  renderer.outputEncoding = THREE.sRGBEncoding;
+  renderer.toneMapping = THREE.ReinhardToneMapping;
+  renderer.toneMappingExposure = 1.0;
+  appElement.appendChild(renderer.domElement);
 
-    const warningContainer = document.createElement('div');
-    warningContainer.id = 'warning-container';
-    warningContainer.style.cssText = `
-      position: fixed;
-      top: 20%;
-      left: 50%;
-      transform: translateX(-50%);
-      z-index: 2000;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      pointer-events: none;
-    `;
-    document.body.appendChild(warningContainer);
+  // ─── Game State & Core Entities (Struktur dari File 1) ─────────────────
+  const clock = new THREE.Clock();
+  const placedObjects = [];
+  const celestialSystem = new CelestialSystem(scene);
+  const terrain = new Terrain(scene);
+  terrain.name = "ground";
+  terrain.updateTextureSettings(renderer);
+  // MERGE: Tambahkan variabel mixer untuk Ferris Wheel dari File 2
+  let ferrisWheelMixer = null;
 
+  const playerControls = new PlayerControls(camera,cameraHolder,renderer.domElement);
+  const objectPlacer = new ObjectPlacer(scene, camera, cameraHolder, placedObjects);
+  const interactionManager = new InteractionManager(camera,scene,placedObjects);
 
-    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 20000);
-    camera.position.set(0, 0, 0);
+  // ─── Lighting (Digabungkan & Dioptimalkan) ─────────────────────────────
+  const hemisphereLight = new THREE.HemisphereLight(0xffffff, 0x444444, 1.0);
+  scene.add(hemisphereLight);
 
-    const cameraHolder = new THREE.Object3D();
-    cameraHolder.position.set(0, 7, -20);
-    cameraHolder.add(camera);
-    scene.add(cameraHolder);
+  const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+  directionalLight.position.set(20, 100, 10);
+  directionalLight.castShadow = true;
+  directionalLight.shadow.mapSize.width = 4096;
+  directionalLight.shadow.mapSize.height = 4096;
+  directionalLight.shadow.camera.near = 0.1;
+  directionalLight.shadow.camera.far = 1000;
+  directionalLight.shadow.camera.left = -200;
+  directionalLight.shadow.camera.right = 200;
+  directionalLight.shadow.camera.top = 200;
+  directionalLight.shadow.camera.bottom = -200;
+  scene.add(directionalLight);
 
-    const renderer = new THREE.WebGLRenderer({ antialias: true });
-    renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-    document.querySelector('#app').appendChild(renderer.domElement);
+  const shadowHelper = new THREE.CameraHelper(directionalLight.shadow.camera);
+  shadowHelper.visible = false;
+  scene.add(shadowHelper);
 
-    // Calculate sidebar width once
-    const sidebarWidth = Math.min(300, window.innerWidth / 6); // Cap at 300px or 1/6 of window width
-    
-    // Update stats panel position and style
-    stats.dom.style.cssText = `
-      position: fixed !important;
-      top: 20px !important;
-      right: 240px !important; // Position it next to the map
-    `;
+  // ─── UI Setup (Struktur dari File 1, konten digabungkan) ───────────────
+  const stats = new Stats();
+  stats.showPanel(0);
+  stats.dom.style.cssText = `position: fixed !important; top: 20px !important; right: 240px !important; z-index: 1001;`;
+  stats.dom.classList.add("game-ui-element");
+  document.body.appendChild(stats.dom);
 
-    // Create left sidebar with pull tab
-    const sidebar = document.createElement('div');
-    sidebar.id = 'game-sidebar';
-    sidebar.style.cssText = `
-      position: fixed;
-      top: 0;
-      left: -${sidebarWidth}px;
-      width: ${sidebarWidth}px;
-      height: 100vh;
-      background: linear-gradient(135deg, rgba(26, 71, 42, 0.9), rgba(40, 114, 51, 0.95));
-      backdrop-filter: blur(8px);
-      -webkit-backdrop-filter: blur(8px);
-      box-shadow: 5px 0 15px rgba(0, 0, 0, 0.2);
-      padding: 20px;
-      color: white;
-      font-family: 'Poppins', sans-serif;
-      z-index: 1000;
-      border-right: 1px solid rgba(255, 255, 255, 0.1);
-      display: flex;
-      flex-direction: column;
-      gap: 15px;
-      transition: all 0.3s ease;
-      opacity: 0;
-      visibility: hidden;
-      overflow-y: auto;
-    `;
+  const sidebarWidth = Math.min(300, window.innerWidth / 3);
+  const sidebar = document.createElement("div");
+  sidebar.id = "game-sidebar";
+  sidebar.style.cssText = `position: fixed; top: 0; height: 100vh; left: -${sidebarWidth}px; width: ${sidebarWidth}px;`;
+  sidebar.innerHTML = SIDEBAR_HTML_CONTENT;
+  const sidebarStyles = document.createElement("style");
+  sidebarStyles.textContent = SIDEBAR_CSS_STYLES;
+  document.head.appendChild(sidebarStyles);
+  document.body.appendChild(sidebar);
+  sidebar.classList.add("game-ui-element");
 
-    // Create map panel with smaller dimensions
-    const mapPanel = document.createElement('div');
-    mapPanel.id = 'game-map';
-    mapPanel.style.cssText = `
-      position: fixed;
-      top: 20px;
-      right: 20px;
-      width: 200px;
-      height: 200px;
-      background: rgba(0, 0, 0, 0.7);
-      border-radius: 8px;
-      padding: 8px;
-      color: white;
-      z-index: 1000;
-      border: 1px solid rgba(255, 255, 255, 0.3);
-      backdrop-filter: blur(5px);
-    `;
+  const mapPanel = document.createElement("div");
+  mapPanel.id = "game-map";
+  mapPanel.style.cssText = `position: fixed; top: 20px; right: 20px; width: 200px; height: 200px; background: rgba(0, 0, 0, 0.7); border-radius: 8px; padding: 8px; z-index: 1000; border: 1px solid rgba(255, 255, 255, 0.3); backdrop-filter: blur(5px);`;
+  mapPanel.classList.add("game-ui-element");
+  const mapCanvas = document.createElement("canvas");
+  mapCanvas.width = 184; mapCanvas.height = 184;
+  mapCanvas.style.background = "#1a1a1a"; mapCanvas.style.borderRadius = "4px";
+  mapPanel.appendChild(mapCanvas);
+  document.body.appendChild(mapPanel);
+  const mapCtx = mapCanvas.getContext("2d");
 
-    // Create canvas for map
-    const mapCanvas = document.createElement('canvas');
-    mapCanvas.width = 184;
-    mapCanvas.height = 184;
-    mapCanvas.style.cssText = `
-      background: #1a1a1a;
-      border-radius: 4px;
-    `;
-    mapPanel.appendChild(mapCanvas);
-    
-    // Map drawing context
-    const mapCtx = mapCanvas.getContext('2d');
+  const interactionPrompt = document.createElement("div");
+  interactionPrompt.id = "interaction-prompt";
+  interactionPrompt.textContent = "Tekan E untuk berinteraksi";
+  interactionPrompt.style.cssText = `position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background-color: rgba(255, 255, 255, 0.8); color: #333; padding: 8px 15px; border-radius: 20px; display: none; z-index: 1000; font-size: 16px; font-weight: bold; box-shadow: 0 0 10px rgba(0,0,0,0.3);`;
+  interactionPrompt.classList.add("game-ui-element");
+  document.body.appendChild(interactionPrompt);
 
-    // Add map panel to document
-    document.body.appendChild(mapPanel);
+  const mascotDialog = document.createElement("div");
+  mascotDialog.id = "mascot-dialog";
+  mascotDialog.style.cssText = `position: fixed; bottom: 50px; left: 50%; transform: translateX(-50%); background-color: rgba(255, 255, 255, 0.9); color: #333; padding: 15px 25px; border-radius: 10px; display: none; z-index: 1000; font-size: 18px; max-width: 80%; box-shadow: 0 0 15px rgba(0,0,0,0.4); border: 2px solid #00aaff;`;
+  mascotDialog.classList.add("game-ui-element");
+  document.body.appendChild(mascotDialog);
+  
+  let isShowingMascotDialog = false;
+  let mascotDialogTimeout = null;
 
-    // Keep only this single sidebar content definition and remove all others
-    const sidebarContent = `
-      <div class="sidebar-section">
-        <div class="sidebar-header">
-          <h2>⏰ Time & Location</h2>
-        </div>
-        <div class="sidebar-content status-container">
-          <div id="time-indicator">Time: Day</div>
-          <div id="position-indicator">Position: X: 0, Y: 0, Z: 0</div>
-        </div>
-      </div>
+  const menuOverlay = document.createElement("div");
+  menuOverlay.style.cssText = `position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.7); display: none; justify-content: center; align-items: center; z-index: 2000;`;
+  menuOverlay.classList.add("game-ui-element");
+  const menuContainer = document.createElement("div");
+  menuContainer.style.cssText = `display: flex; flex-direction: column; gap: 20px; min-width: 200px;`;
+  const menuButtons = [{ text: "Settings", action: () => { settingsOverlay.style.display = "flex"; } }, { text: "Help", action: () => console.log("Help clicked") }, { text: "Close Game", action: () => (window.location.href = "/") }, { text: "Back", action: () => toggleMenu(false) }, ];
+  menuButtons.forEach(({ text, action }) => { const button = document.createElement("button"); button.textContent = text; button.style.cssText = `padding: 15px 30px; font-size: 18px; border: none; border-radius: 8px; background: linear-gradient(135deg, rgba(26, 71, 42, 0.9), rgba(40, 114, 51, 0.95)); color: #98ff98; cursor: pointer; transition: all 0.3s ease; backdrop-filter: blur(5px); border: 1px solid rgba(152, 255, 152, 0.3);`; button.onmouseover = () => { button.style.transform = "scale(1.05)"; button.style.background = "linear-gradient(135deg, rgba(40, 114, 51, 0.95), rgba(56, 161, 71, 0.95))"; }; button.onmouseout = () => { button.style.transform = "scale(1)"; button.style.background = "linear-gradient(135deg, rgba(26, 71, 42, 0.9), rgba(40, 114, 51, 0.95))"; }; button.onclick = action; menuContainer.appendChild(button); });
+  menuOverlay.appendChild(menuContainer); document.body.appendChild(menuOverlay);
+  const settingsOverlay = document.createElement("div"); settingsOverlay.style.cssText = `position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.8); display: none; justify-content: center; align-items: center; z-index: 3000; color: white; font-size: 20px;`; settingsOverlay.classList.add("game-ui-element"); settingsOverlay.innerHTML = `<div style="background: rgba(0,255,136,0.1); border: 1px solid #00ff88; padding: 30px; border-radius: 10px;"> <h2>Settings</h2> <p>Coming soon...</p> <button id="close-settings-btn" style="margin-top: 20px; padding: 10px 20px;">Close</button> </div>`; document.body.appendChild(settingsOverlay); document.getElementById("close-settings-btn").onclick = () => { settingsOverlay.style.display = "none"; };
+  function toggleMenu(show) { menuOverlay.style.display = show ? "flex" : "none"; if (show) { document.exitPointerLock(); } else { if (!objectPlacer.active) { renderer.domElement.requestPointerLock(); } } }
+  
+  // ─── Loading Objek Statis (Digabungkan) ─────────────────────────
+  async function loadStaticScenery() {
+      loadTicketBooth(scene, { position: new THREE.Vector3(35, 0, 137.9), scale: 5, rotation: new THREE.Euler(0, Math.PI, 0) })
+          .then(() => {
+              console.log("Ticket booth loaded!");
+              setMascotFollowing(true, cameraHolder);
+          });
 
-      <div class="sidebar-section">
-        <div class="sidebar-header">
-          <h2>🎮 Controls</h2>
-        </div>
-        <div class="sidebar-content">
-          <div class="control-item">
-            <span class="key">WASD</span>
-            <span class="action">Move</span>
-          </div>
-          <div class="control-item">
-            <span class="key">MOUSE</span>
-            <span class="action">Look around</span>
-          </div>
-          <div class="control-item">
-            <span class="key">SPACE</span>
-            <span class="action">Jump</span>
-          </div>
-          <div class="control-item">
-            <span class="key">ESC</span>
-            <span class="action">Menu</span>
-          </div>
-        </div>
-      </div>
-
-      <div class="sidebar-section">
-        <div class="sidebar-header">
-          <h2>🎡 Placement</h2>
-        </div>
-        <div class="sidebar-content">
-          <div class="control-item">
-            <span class="key">1</span>
-            <span class="action">Place Merry-go-round</span>
-          </div>
-          <div class="control-item">
-            <span class="key">ENTER</span>
-            <span class="action">Confirm place</span>
-          </div>
-          <div class="control-item">
-            <span class="key">E</span>
-            <span class="action">Interact</span>
-          </div>
-        </div>
-      </div>
-    `;
-
-    // Update the sidebar styles
-    const sidebarStyles = document.createElement('style');
-    sidebarStyles.textContent = `
-      #game-sidebar {
-        padding: 15px;
-        overflow-y: auto;
-        max-height: calc(100vh - 30px);
-      }
-
-      .sidebar-section {
-        background: rgba(0, 0, 0, 0.4);
-        border-radius: 12px;
-        margin-bottom: 15px;
-        border: 1px solid rgba(0, 255, 136, 0.2);
-        overflow: hidden;
-      }
-
-      .sidebar-header {
-        padding: 12px 15px;
-        background: rgba(0, 255, 136, 0.1);
-        border-bottom: 1px solid rgba(0, 255, 136, 0.2);
-      }
-
-      .sidebar-header h2 {
-        margin: 0;
-        font-size: 1.1em;
-        color: #00ff88;
-        font-weight: bold;
-        display: flex;
-        align-items: center;
-        gap: 8px;
-      }
-
-      .sidebar-content {
-        padding: 12px 15px;
-      }
-
-      .status-container {
-        display: flex;
-        flex-direction: column;
-        gap: 8px;
-      }
-
-      .control-item {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 6px 0;
-        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-      }
-
-      .control-item:last-child {
-        border-bottom: none;
-      }
-
-      .key {
-        background: rgba(0, 255, 136, 0.15);
-        padding: 4px 12px;
-        border-radius: 4px;
-        color: #00ff88;
-        font-weight: bold;
-        min-width: 50px;
-        text-align: center;
-        border: 1px solid rgba(0, 255, 136, 0.3);
-      }
-
-      .action {
-        color: #ffffff;
-        text-shadow: 0 0 10px rgba(0, 255, 136, 0.3);
-      }
-
-      #time-indicator, #position-indicator {
-        margin-bottom: 5px;
-        color: #00ff88;
-      }
-
-      #time-indicator:last-child, #position-indicator:last-child {
-        margin-bottom: 0;
-      }
-
-      .stats {
-        background: rgba(0, 0, 0, 0.7) !important;
-        padding: 5px !important;
-        border-radius: 8px !important;
-        border: 1px solid rgba(255, 255, 255, 0.3) !important;
-        backdrop-filter: blur(5px) !important;
-      }
-    `;
-
-    // Remove all duplicate sidebar content definitions and appendChild calls
-    document.head.appendChild(sidebarStyles);
-    sidebar.innerHTML = sidebarContent;
-    document.body.appendChild(sidebar);
-
-    document.addEventListener('keydown', (event) => {
-      if (event.key === 'Tab') {
-        event.preventDefault(); // prevent focus shifting
-        const isVisible = sidebar.style.left === '0px';
-        sidebar.style.left = isVisible ? `-${sidebar.offsetWidth}px` : '0px';
-        sidebar.style.opacity = isVisible ? '0' : '1';
-        sidebar.style.visibility = isVisible ? 'hidden' : 'visible';
-      }
-    });
-
-
-    // Update window resize handler
-    window.addEventListener("resize", () => {
-      camera.aspect = window.innerWidth / window.innerHeight;
-      camera.updateProjectionMatrix();
-      renderer.setSize(window.innerWidth, window.innerHeight);
-      sidebar.style.width = `${window.innerWidth / 6}px`;
-    });
-
-    // Pass renderer.domElement to PlayerControls for proper pointer lock
-    const celestialSystem = new CelestialSystem(scene);
-    const terrain = new Terrain(scene);
-    const modelLoader = new ModelLoader(scene);
-    const playerControls = new PlayerControls(camera, cameraHolder, modelLoader, renderer.domElement);
-
-    // Add after creating modelLoader
-    const interactionManager = new InteractionManager(camera, scene);
-    modelLoader.interactionManager = interactionManager;
-
-    scene.add(new THREE.HemisphereLight(0xffffff, 0x444444, 1.0)); // Back to original lighting
-
-    const directionalLight = new THREE.DirectionalLight(0xffffff, 1); // Back to white light
-    directionalLight.position.set(20, 100, 10);
-    directionalLight.castShadow = true;
-    directionalLight.shadow.mapSize.width = 2048;
-    directionalLight.shadow.mapSize.height = 2048;
-    directionalLight.shadow.camera.near = 0.5;
-    directionalLight.shadow.camera.far = 500;
-    directionalLight.shadow.camera.left = -100;
-    directionalLight.shadow.camera.right = 100;
-    directionalLight.shadow.camera.top = 100;
-    directionalLight.shadow.camera.bottom = -100;
-    scene.add(directionalLight);
-
-    // Remove model-related variables
-    const positionIndicator = document.createElement('div');
-    positionIndicator.id = 'position-indicator';
-    positionIndicator.className = 'indicator';
-    document.body.appendChild(positionIndicator);
-
-    terrain.updateTextureSettings(renderer);
-
-    // Remove loadModels function
-    async function loadModels() {
-      // Empty function - we'll add models back later if needed
-    }
-
-    loadModels();
-    modelLoader.toggleBoundingBoxes();
-
-    // Remove merry-go-round variables
-    const clock = new THREE.Clock();
-
-    // Helper for bounding box
-    const playerCollider = new THREE.Box3();
-    const seatCollider = new THREE.Box3();
-
-    // Add animation style before creating warning box
-    const style = document.createElement('style');
-    style.textContent = `
-      @keyframes flash {
-        0% { transform: translate(-50%, -50%) scale(1); background-color: rgba(255, 0, 0, 0.9); }
-        50% { transform: translate(-50%, -50%) scale(1.1); background-color: rgba(255, 0, 0, 0.7); }
-        100% { transform: translate(-50%, -50%) scale(1); background-color: rgba(255, 0, 0, 0.9); }
-      }
-    `;
-    document.head.appendChild(style);
-
-    // Update warning box style
-    const warningBox = document.createElement('div');
-    warningBox.id = 'collision-warning';
-    warningBox.style.cssText = `
-      position: fixed;
-      top: 20%;  // Move higher up on screen
-      left: 50%;
-      transform: translate(-50%, -50%);
-      background-color: rgba(255, 0, 0, 0.9);  // More opaque red
-      color: white;
-      padding: 15px 30px;
-      border-radius: 8px;
-      display: none;
-      z-index: 1000;
-      font-size: 18px;  // Larger text
-      font-weight: bold;  // Bold text
-      text-shadow: 2px 2px 4px rgba(0,0,0,0.5);  // Text shadow for better visibility
-      border: 2px solid white;  // White border
-      box-shadow: 0 0 10px rgba(0,0,0,0.5);  // Box shadow
-    `;
-    // Modify warning box text
-    warningBox.textContent = ""; // We'll update this dynamically
-    document.body.appendChild(warningBox);
-
-    // Create ObjectPlacer instance after scene setup
-    const objectPlacer = new ObjectPlacer(scene, camera, cameraHolder, modelLoader);
-    
-    document.body.appendChild(sidebar);
-    document.body.appendChild(mapPanel);
-
-    // Update the animate function to include map drawing
-    function updateMap() {
-      mapCtx.fillStyle = '#1a1a1a';
-      mapCtx.fillRect(0, 0, mapCanvas.width, mapCanvas.height);
-
-      // Draw player position with adjusted scale
-      const mapScale = 3; // Increased scale to match smaller map
-      const centerX = mapCanvas.width / 2;
-      const centerZ = mapCanvas.height / 2;
-
-      // Draw player (white dot)
-      mapCtx.fillStyle = '#ffffff';
-      mapCtx.beginPath();
-      mapCtx.arc(
-        centerX + (cameraHolder.position.x / mapScale),
-        centerZ + (cameraHolder.position.z / mapScale),
-        3, 0, Math.PI * 2
-      );
-      mapCtx.fill();
-
-      // Draw player direction (white line)
-      const direction = new THREE.Vector3();
-      camera.getWorldDirection(direction);
-      mapCtx.strokeStyle = '#ffffff';
-      mapCtx.beginPath();
-      mapCtx.moveTo(
-        centerX + (cameraHolder.position.x / mapScale),
-        centerZ + (cameraHolder.position.z / mapScale)
-      );
-      mapCtx.lineTo(
-        centerX + (cameraHolder.position.x / mapScale) + direction.x * 10,
-        centerZ + (cameraHolder.position.z / mapScale) + direction.z * 10
-      );
-      mapCtx.stroke();
-    }
-
-    // Modify the animate function
-    function animate() {
-      requestAnimationFrame(animate);
-      stats.begin();
-
-      const deltaTime = clock.getDelta();
-
-      // Update player controls - pastikan update menerima deltaTime jika diperlukan
-      playerControls.update(deltaTime);
-      modelLoader.updateBoundingBoxes();
+      loadHedgeFences(scene, { centerPoint: new THREE.Vector3(0, 0, 0), distance: 150, fenceHeight: 10, spacing: 15, modelPath: "./simple_brick_fence.glb" });
+      loadTrees(scene, { centerPoint: new THREE.Vector3(0, 0, 0), parkDistance: 200, treeDistance: 200, treeSpacing: 150, treeScale: 0.7, modelPath: "./quick_treeit_tree.glb" });
+      loadPicnicTableGroup(scene, { basePosition: new THREE.Vector3(-36.3, 0, 128.6), count: 3, spacing: 30, direction: "left" });
       
-
-      // Check player collisions
-      const playerBox = new THREE.Box3().setFromCenterAndSize(
-        cameraHolder.position.clone().add(new THREE.Vector3(0, 2.25, 0)),
-        new THREE.Vector3(1, 4.5, 1)
-      );
-
-
-      const collisionResult = modelLoader.checkCollision(playerBox);
-      if (collisionResult.collision) {
-        warningBox.textContent = `⚠️ Collision with ${collisionResult.objectName}! ⚠️`;
-        warningBox.style.display = 'block';
-        // Flash the warning box
-        warningBox.style.animation = 'none';
-        warningBox.offsetHeight; // Trigger reflow
-        warningBox.style.animation = 'flash 0.5s 2';
-        setTimeout(() => {
-          warningBox.style.display = 'none';
-        }, 1500); // Show for 1.5 seconds
-        playerControls.rollbackPosition();
-      }
-
-      celestialSystem.update(camera, directionalLight);
-
-      const position = cameraHolder.position;
-      positionIndicator.textContent = `Position: X: ${position.x.toFixed(1)}, Y: ${position.y.toFixed(1)}, Z: ${position.z.toFixed(1)}`;
-
-      updateMap(); // Add this line before renderer.render
-
-      // Update object placer
-      if (objectPlacer && objectPlacer.active) {
-        objectPlacer.updatePreviewTransform();
-      }
-
-      // Update interactions
-      const nearbyObject = interactionManager.update(cameraHolder.position);
+      // MERGE: Menggunakan sistem NPC dari File 2
+      initializeNPCSystem(scene, celestialSystem); 
       
-      // Update object animations
-      scene.traverse((object) => {
-        if (object.userData.type === 'merry-go-round' && object.userData.isSpinning) {
-          object.rotation.y += object.userData.spinSpeed;
-        }
-      });
+      loadParkCornerStreetLights(scene, { parkSize: 150, scale: 3, lightIntensity: 25, lightDistance: 100 })
+          .then(() => {
+              setTimeout(() => updateStreetLightsByTime(6), 1000); // Start at 6 AM
+          });
 
-      // Handle 'E' key press for interactions
-      document.addEventListener('keydown', (event) => {
-        if (event.key.toLowerCase() === 'e') {
-          interactionManager.handleInteraction(nearbyObject);
-        }
-      });
+      // MERGE: Tambahkan loading Ferris Wheel dengan mixer dari File 2
+      loadFerrisWheel(scene, { position: new THREE.Vector3(4, -120, -100), scale: 5, rotation: new THREE.Euler(0, Math.PI / 2, 0) })
+          .then(({ mixer }) => {
+              console.log("Ferris wheel loaded!");
+              ferrisWheelMixer = mixer; // Simpan mixer untuk animasi
+          });
+  }
+  loadStaticScenery();
 
-      renderer.render(scene, camera);
-      stats.end();
+  // ─── Game Loop (Fungsi Animate Digabungkan & Diperkaya) ────────────────
+  const playerCollider = new THREE.Box3();
+  function animate() {
+    requestAnimationFrame(animate);
+    stats.begin();
+    const deltaTime = clock.getDelta();
+    const previousPosition = cameraHolder.position.clone();
+
+    // Update sistem inti
+    playerControls.update(deltaTime);
+    const timeData = celestialSystem.update(camera, directionalLight);
+    if (objectPlacer.active) {
+      objectPlacer.updatePreviewTransform();
+    }
+    
+    // MERGE: Update animasi Ferris Wheel dari File 2
+    if (ferrisWheelMixer) {
+        ferrisWheelMixer.update(deltaTime);
+    }
+    
+    // MERGE: Update posisi mascot
+    updateMascotPosition(cameraHolder.position);
+
+    // Update setiap objek yang ditempatkan
+    for (const obj of placedObjects) {
+      if (obj.update) obj.update(deltaTime);
     }
 
-    // Start dengan merry-go-round preview aktif
-    // objectPlacer.startPlacement('merry_go_round.glb').then(() => {
-    //   objectPlacer.active = true;
-    //   const spotLight = new THREE.SpotLight(0xffffff, 1);
-    //   spotLight.position.set(0, 10, 0);
-    //   spotLight.target = objectPlacer.previewMesh || objectPlacer.debugBox;
-    //   scene.add(spotLight);
-    // });
-
-    // Change the event listener for object placement
-    document.addEventListener('keydown', async (event) => {
-      switch(event.key) {
-        case 'Enter':
-          if (objectPlacer?.active) {
-            objectPlacer.confirmPlacement();
-          }
-          break;
-        case '1':
-          // Start placement mode
-          if (objectPlacer) {
-            await objectPlacer.startPlacement();
-          }
-          break;
+    // Deteksi tabrakan dengan objek yang ditempatkan
+    playerCollider.setFromCenterAndSize(cameraHolder.position.clone().add(new THREE.Vector3(0, -0.5, 0)), new THREE.Vector3(1, 1.8, 1));
+    let isCollidingWithPlacedObject = false;
+    for (const obj of placedObjects) {
+      if (obj.checkCollision && obj.checkCollision(playerCollider)) {
+        isCollidingWithPlacedObject = true;
+        break;
       }
-    });
+    }
+    if (isCollidingWithPlacedObject) {
+      playerControls.rollbackPosition();
+    }
 
-    animate();
+    // MERGE: Deteksi tabrakan dengan objek statis (digabungkan dari kedua file)
+    if (checkFenceCollisionMultiDirection(cameraHolder.position, 2.0).collision ||
+        checkTicketBoothCollision(cameraHolder.position, 1.5) ||
+        checkPicnicTableCollision(cameraHolder.position, 1.0).collision ||
+        checkFerrisWheelCollision(cameraHolder.position, 1.5).collision) 
+    {
+        cameraHolder.position.copy(previousPosition);
+    }
+    
+    // MERGE: Update lighting berdasarkan waktu
+    hemisphereLight.intensity = timeData.isDaytime ? 1.0 : 0.2;
+    updateStreetLightsByTime(timeData.gameHour);
+    
+    // Update interaksi dan UI
+    interactionManager.update(cameraHolder.position);
+    updateMap();
+    
+    // MERGE: Update prompt interaksi yang lebih dinamis
+    const cameraDirection = new THREE.Vector3();
+    camera.getWorldDirection(cameraDirection);
+    const nearbyInteractable = interactionManager.getNearbyObject(cameraHolder.position);
 
-    window.addEventListener("resize", () => {
-      camera.aspect = window.innerWidth / window.innerHeight;
-      camera.updateProjectionMatrix();
-      renderer.setSize(window.innerWidth, window.innerHeight);
-    });
+    if (isLookingAtMascot(cameraHolder.position, cameraDirection) && !isShowingMascotDialog) {
+        interactionPrompt.textContent = "Tekan F untuk Bicara";
+        interactionPrompt.style.display = "block";
+    } else if (nearbyInteractable) {
+        interactionPrompt.textContent = `Tekan E untuk berinteraksi`;
+        interactionPrompt.style.display = "block";
+    } else {
+        interactionPrompt.style.display = "none";
+    }
 
-    // Add overlay menu (add this after other UI elements but before event listeners)
-    const menuOverlay = document.createElement('div');
-    menuOverlay.style.cssText = `
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background: rgba(0, 0, 0, 0.7);
-      display: none;
-      justify-content: center;
-      align-items: center;
-      z-index: 2000;
-    `;
+    // MERGE: Update UI di Sidebar dengan detail dari File 2
+    document.getElementById("position-indicator-value").textContent = `X: ${cameraHolder.position.x.toFixed(1)}, Y: ${cameraHolder.position.y.toFixed(1)}, Z: ${cameraHolder.position.z.toFixed(1)}`;
+    const timeIndicatorValue = document.getElementById("time-indicator-value");
+    if(timeIndicatorValue) timeIndicatorValue.textContent = `${timeData.timeString} ${timeData.period}`;
+    const timeIcon = document.getElementById("time-icon");
+    if(timeIcon) timeIcon.textContent = timeData.isDaytime ? '☀️' : '🌙';
 
-    const menuContainer = document.createElement('div');
-    menuContainer.style.cssText = `
-      display: flex;
-      flex-direction: column;
-      gap: 20px;
-      min-width: 200px;
-    `;
+    // MERGE: Update NPC counter dengan info detail dari File 2
+    const npcCounter = document.getElementById("npc-counter");
+    if (npcCounter) {
+        const npcStats = getNPCStats();
+        const sittingStatus = getSittingPositionStatus();
+        let npcText = `${npcStats.currentCount}/${npcStats.maxCount} | Seats: ${sittingStatus.occupied}/${sittingStatus.total}`;
+        if (npcStats.currentCount < npcStats.maxCount) {
+            const minutesUntilNext = Math.ceil(npcStats.nextSpawnIn / (60 * 1000));
+            npcText += `<br>Next in ${minutesUntilNext}m`;
+        }
+        npcCounter.innerHTML = npcText;
+    }
 
-    const menuButtons = [
-      { text: 'Settings', action: () => console.log('Settings clicked') },
-      { text: 'Help', action: () => console.log('Help clicked') },
-      { text: 'Close Game', action: () => {
-        // Redirect to dashboard (assuming it's at the root level)
-        window.location.href = '/';
-      }},
-      { text: 'Back', action: () => toggleMenu(false) }
-    ];
+    renderer.render(scene, camera);
+    stats.end();
+  }
 
-    menuButtons.forEach(({ text, action }) => {
-      const button = document.createElement('button');
-      button.textContent = text;
-      button.style.cssText = `
-        padding: 15px 30px;
-        font-size: 18px;
-        border: none;
-        border-radius: 8px;
-        background: linear-gradient(135deg, rgba(26, 71, 42, 0.9), rgba(40, 114, 51, 0.95));
-        color: #98ff98; // Light mint green text
-        cursor: pointer;
-        transition: all 0.3s ease;
-        backdrop-filter: blur(5px);
-        -webkit-backdrop-filter: blur(5px);
-        border: 1px solid rgba(152, 255, 152, 0.3); // Subtle mint green border
-      `;
-      button.onmouseover = () => {
-        button.style.transform = 'scale(1.05)';
-        button.style.background = 'linear-gradient(135deg, rgba(40, 114, 51, 0.95), rgba(56, 161, 71, 0.95))';
-      };
-      button.onmouseout = () => {
-        button.style.transform = 'scale(1)';
-        button.style.background = 'linear-gradient(135deg, rgba(26, 71, 42, 0.9), rgba(40, 114, 51, 0.95))';
-      };
-      button.onclick = action;
-      menuContainer.appendChild(button);
-    });
+  // ─── Event Listeners (Digabungkan & Disempurnakan) ─────────────────────
+  function updateMap() { mapCtx.fillStyle = "#1a1a1a"; mapCtx.fillRect(0, 0, mapCanvas.width, mapCanvas.height); const mapScale = 3; const centerX = mapCanvas.width / 2; const centerZ = mapCanvas.height / 2; const pos = cameraHolder.position; mapCtx.fillStyle = "#ffffff"; mapCtx.beginPath(); mapCtx.arc( centerX + pos.x / mapScale, centerZ + pos.z / mapScale, 3, 0, Math.PI * 2 ); mapCtx.fill(); const dir = new THREE.Vector3(); camera.getWorldDirection(dir); mapCtx.strokeStyle = "#ffffff"; mapCtx.beginPath(); mapCtx.moveTo(centerX + pos.x / mapScale, centerZ + pos.z / mapScale); mapCtx.lineTo( centerX + pos.x / mapScale + dir.x * 10, centerZ + pos.z / mapScale + dir.z * 10 ); mapCtx.stroke(); }
+  window.addEventListener("resize", () => { camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); });
 
-    menuOverlay.appendChild(menuContainer);
-    document.body.appendChild(menuOverlay);
+  document.addEventListener("keydown", async (event) => {
+    tutorial.completeStep(event);
 
-    // Add menu toggle function
-    function toggleMenu(show) {
-      menuOverlay.style.display = show ? 'flex' : 'none';
-      if (show) {
-        document.exitPointerLock();
-      } else {
-        renderer.domElement.requestPointerLock();
+    if (event.key === "Escape") {
+      if (objectPlacer.active) { objectPlacer.cancelPlacement(); return; }
+      toggleMenu(menuOverlay.style.display !== "flex");
+    }
+
+    if (event.key === "Tab") {
+      event.preventDefault();
+      const isVisible = sidebar.style.left === "0px";
+      if (isVisible) { sidebar.style.left = `-${sidebar.offsetWidth}px`; sidebar.style.opacity = "0"; sidebar.style.visibility = "hidden"; } 
+      else { sidebar.style.left = "0px"; sidebar.style.opacity = "1"; sidebar.style.visibility = "visible"; }
+    }
+
+    if (event.key === "Enter" && objectPlacer.active) {
+        const placedObject = await objectPlacer.confirmPlacement();
+        if (placedObject) {
+          placedObjects.push(placedObject);
+          if (placedObject.model && placedObject.onInteraction) {
+            interactionManager.addInteractableObject(placedObject.model, placedObject.name, () => {
+              placedObject.onInteraction();
+            });
+          }
+        }
+    }
+
+    if (event.key.toLowerCase() === "f") {
+      const cameraDirection = new THREE.Vector3();
+      camera.getWorldDirection(cameraDirection);
+
+      // Prioritaskan interaksi dengan mascot jika sedang dilihat
+      if (isLookingAtMascot(cameraHolder.position, cameraDirection) && !isShowingMascotDialog) {
+          mascotDialog.textContent = getMascotDialog();
+          mascotDialog.style.display = "block";
+          isShowingMascotDialog = true;
+          
+          if (mascotDialogTimeout) clearTimeout(mascotDialogTimeout);
+          mascotDialogTimeout = setTimeout(() => {
+              mascotDialog.style.display = "none";
+              isShowingMascotDialog = false;
+          }, 3000);
+          return;
+    }
+
+    // MERGE: Logika interaksi 'E' yang disempurnakan
+    if (event.key.toLowerCase() === "e") {
+        const cameraDirection = new THREE.Vector3();
+        camera.getWorldDirection(cameraDirection);
+        
+        return; // Hentikan proses jika berinteraksi dengan mascot
+      }
+      
+      // Jika tidak, proses interaksi dengan objek lain via InteractionManager
+      const nearby = interactionManager.getNearbyObject(cameraHolder.position);
+      if (nearby) {
+        interactionManager.handleInteraction(nearby);
       }
     }
 
-  document.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape') {
-      if (objectPlacer?.active) {
-        objectPlacer.cancelPlacement(); // Cancel placement first
-        return;
-      }
-
-      const isMenuVisible = menuOverlay.style.display === 'flex';
-      toggleMenu(!isMenuVisible); // Toggle the menu
+    // MERGE: Event listener untuk debug dan kontrol lampu dari File 2
+    switch (event.key.toLowerCase()) {
+        case 'h':
+            shadowHelper.visible = !shadowHelper.visible;
+            break;
+        case 'l':
+            const newState = toggleStreetLights();
+            const lightOverrideRow = document.getElementById('light-override-status-row');
+            const lightOverrideIndicator = document.getElementById('light-override-indicator');
+            if(lightOverrideRow && lightOverrideIndicator) {
+                lightOverrideRow.style.display = 'flex';
+                lightOverrideIndicator.textContent = newState ? 'FORCED ON' : 'FORCED OFF';
+            }
+            break;
+        case 'r':
+            resetStreetLightOverride();
+            const resetRow = document.getElementById('light-override-status-row');
+            if(resetRow) {
+                resetRow.style.display = 'none';
+            }
+            break;
     }
   });
-  }
+
+  document.getElementById("placeable-item-list").addEventListener("click", async (event) => {
+    const item = event.target.closest(".placeable-item");
+    if (!item) return;
+
+    tutorial.completeStep(event);
+    const objectTypeKey = item.getAttribute("data-type");
+    if (objectTypeKey) {
+      await objectPlacer.startPlacement(objectTypeKey);
+    }
+  });
+
+  // ─── Start Game ───────────────────────────────────────────────────────────
+  tutorial.start();
+  animate();
+}
