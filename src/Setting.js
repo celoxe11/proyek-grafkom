@@ -1,79 +1,4 @@
-export class AudioSettings {
-  constructor(openingMusic, gameMusic, soundEffects = []) {
-    this.openingMusic = openingMusic;
-    this.gameMusic = gameMusic;
-    this.soundEffects = soundEffects;
-
-    this.musicVolume = 0.5;
-    this.effectsVolume = 0.5;
-    this.musicMuted = false;
-    this.effectsMuted = false;
-  }
-
-  createSettingsUI(parent) {
-    const container = document.createElement('div');
-    container.id = 'settings-panel';
-    container.style.cssText = `
-      padding: 20px;
-      background-color: rgba(0,0,0,0.8);
-      color: white;
-      border-radius: 10px;
-      font-family: sans-serif;
-      width: 250px;
-      margin-bottom: 20px;
-    `;
-
-    container.innerHTML = `
-      <h3 style="margin-top: 0;">Audio Settings</h3>
-      <label>🎵 Music Volume</label>
-      <input type="range" min="0" max="1" step="0.01" value="${this.musicVolume}" id="music-volume" />
-      <br/><br/>
-      <label>🔊 SFX Volume</label>
-      <input type="range" min="0" max="1" step="0.01" value="${this.effectsVolume}" id="sfx-volume" />
-      <br/><br/>
-      <label><input type="checkbox" id="mute-music" /> Mute Music</label><br/>
-      <label><input type="checkbox" id="mute-sfx" /> Mute SFX</label>
-    `;
-
-    parent.appendChild(container);
-
-    document.getElementById('music-volume').addEventListener('input', (e) => {
-      this.musicVolume = parseFloat(e.target.value);
-      this.applyVolumeSettings();
-    });
-
-    document.getElementById('sfx-volume').addEventListener('input', (e) => {
-      this.effectsVolume = parseFloat(e.target.value);
-      this.applyVolumeSettings();
-    });
-
-    document.getElementById('mute-music').addEventListener('change', (e) => {
-      this.musicMuted = e.target.checked;
-      this.applyVolumeSettings();
-    });
-
-    document.getElementById('mute-sfx').addEventListener('change', (e) => {
-      this.effectsMuted = e.target.checked;
-      this.applyVolumeSettings();
-    });
-  }
-
-  applyVolumeSettings() {
-    if (this.openingMusic) {
-      this.openingMusic.volume = this.musicMuted ? 0 : this.musicVolume;
-    }
-    if (this.gameMusic) {
-      this.gameMusic.volume = this.musicMuted ? 0 : this.musicVolume;
-    }
-    this.soundEffects.forEach((sfx) => {
-      if (sfx instanceof Audio) {
-        sfx.volume = this.effectsMuted ? 0 : this.effectsVolume;
-      }
-    });
-  }
-}
-
-export function createSettingsPage(openingMusic, gameMusic, soundEffects = []) {
+export function createSettingsPage(audioManager) {
   const app = document.querySelector("#app");
   if (app) app.innerHTML = "";
 
@@ -81,40 +6,126 @@ export function createSettingsPage(openingMusic, gameMusic, soundEffects = []) {
   container.style.cssText = `
     width: 100vw;
     height: 100vh;
-    background: linear-gradient(135deg, #000000, #003300);
+    background: linear-gradient(135deg, #0a0a0a, #003300);
     display: flex;
     flex-direction: column;
     align-items: center;
-    justify-content: center;
+    justify-content: flex-start;
+    padding-top: 50px;
     color: white;
-    font-family: sans-serif;
+    font-family: 'Poppins', sans-serif;
   `;
 
   const title = document.createElement("h1");
-  title.textContent = "🎛️ Settings";
-  title.style.marginBottom = "20px";
+  title.textContent = "🎛️ Game Settings";
+  title.style.cssText = `
+    margin-bottom: 40px;
+    font-size: 32px;
+    text-shadow: 2px 2px 4px black;
+  `;
   container.appendChild(title);
 
-  // Buat dan tambahkan UI Audio Settings
-  const audioSettings = new AudioSettings(openingMusic, gameMusic, soundEffects);
-  audioSettings.createSettingsUI(container);
+  // Panel Settings
+  const panel = document.createElement("div");
+  panel.style.cssText = `
+    padding: 25px 30px;
+    background-color: rgba(0,0,0,0.75);
+    border: 2px solid #00cc88;
+    border-radius: 15px;
+    width: 320px;
+    box-shadow: 0 0 15px rgba(0,255,136,0.2);
+  `;
 
+  // Music Volume
+  panel.innerHTML += `
+    <label style="display: block; margin-bottom: 6px;">🎵 Music Volume</label>
+    <input type="range" id="music-volume" min="0" max="1" step="0.01" value="${audioManager.musicVolume}" style="width: 100%;" />
+    <br/><br/>
+
+    <label style="display: block; margin-bottom: 6px;">🔊 SFX Volume</label>
+    <input type="range" id="sfx-volume" min="0" max="1" step="0.01" value="${audioManager.effectsVolume}" style="width: 100%;" />
+    <br/><br/>
+
+    <label><input type="checkbox" id="mute-music" ${audioManager.musicMuted ? "checked" : ""} /> Mute Music</label><br/>
+    <label><input type="checkbox" id="mute-sfx" ${audioManager.effectsMuted ? "checked" : ""} /> Mute SFX</label>
+  `;
+
+  container.appendChild(panel);
+
+  // Back Button
   const backButton = document.createElement("button");
   backButton.textContent = "⬅ Back to Game";
   backButton.style.cssText = `
-    padding: 10px 20px;
+    margin-top: 40px;
+    padding: 12px 30px;
     background: #00cc88;
-    border: none;
-    border-radius: 5px;
     color: white;
     font-weight: bold;
+    border: none;
+    border-radius: 8px;
     cursor: pointer;
-    margin-top: 20px;
+    font-size: 16px;
+    transition: background 0.3s ease;
   `;
-  backButton.onclick = () => {
-    window.location.reload(); // atau panggil window.initGame()
-  };
+  backButton.onmouseover = () => backButton.style.background = "#00b378";
+  backButton.onmouseout = () => backButton.style.background = "#00cc88";
+  backButton.onclick = () => window.initGame();
 
   container.appendChild(backButton);
   app.appendChild(container);
+
+  // Event listeners
+  document.getElementById("music-volume").addEventListener("input", (e) => {
+    audioManager.musicVolume = parseFloat(e.target.value);
+    audioManager.applyVolumeSettings();
+  });
+
+  document.getElementById("sfx-volume").addEventListener("input", (e) => {
+    audioManager.effectsVolume = parseFloat(e.target.value);
+    audioManager.applyVolumeSettings();
+  });
+
+  document.getElementById("mute-music").addEventListener("change", (e) => {
+    audioManager.musicMuted = e.target.checked;
+    audioManager.applyVolumeSettings();
+  });
+
+  document.getElementById("mute-sfx").addEventListener("change", (e) => {
+    audioManager.effectsMuted = e.target.checked;
+    audioManager.applyVolumeSettings();
+  });
+}
+
+export class AudioManager {
+  constructor() {
+    this.openingMusic = new Audio('./sound_effect/Opening.mp3');
+    this.gameMusic = new Audio('./sound_effect/Game_sound.mp3');
+    this.soundEffects = [];
+
+    this.musicVolume = 0.5;
+    this.effectsVolume = 0.5;
+    this.musicMuted = false;
+    this.effectsMuted = false;
+
+    this.applyVolumeSettings();
+  }
+
+  applyVolumeSettings() {
+    const musicVol = this.musicMuted ? 0 : this.musicVolume;
+    if (this.openingMusic) this.openingMusic.volume = musicVol;
+    if (this.gameMusic) this.gameMusic.volume = musicVol;
+
+    this.soundEffects.forEach((sfx) => {
+      if (sfx instanceof Audio) {
+        sfx.volume = this.effectsMuted ? 0 : this.effectsVolume;
+      }
+    });
+  }
+
+  addSoundEffect(audio) {
+    if (audio instanceof Audio) {
+      this.soundEffects.push(audio);
+      this.applyVolumeSettings();
+    }
+  }
 }

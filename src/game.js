@@ -20,6 +20,7 @@ import {
   loadHedgeFences,
   checkFenceCollisionMultiDirection,
 } from "./objects/hedgeFences.js";
+
 import { loadTrees } from "./objects/trees.js";
 
 import {
@@ -314,14 +315,14 @@ export function initGame() {
       spacing: 15,
       modelPath: "./simple_brick_fence.glb",
     });
-    // loadTrees(scene, {
-    //   centerPoint: new THREE.Vector3(0, 0, 0),
-    //   parkDistance: 200,
-    //   treeDistance: 200,
-    //   treeSpacing: 150,
-    //   treeScale: 0.7,
-    //   modelPath: "./quick_treeit_tree.glb",
-    // });
+    loadTrees(scene, {
+      centerPoint: new THREE.Vector3(0, 0, 0),
+      parkDistance: 200,
+      treeDistance: 200,
+      treeSpacing: 150,
+      treeScale: 0.7,
+      modelPath: "./quick_treeit_tree.glb",
+    });
     loadPicnicTableGroup(scene, {
       basePosition: new THREE.Vector3(-36.3, 0, 128.6),
       count: 3,
@@ -329,7 +330,7 @@ export function initGame() {
       direction: "left",
     });
 
-    // initializeNPCSystem(scene, celestialSystem);
+    initializeNPCSystem(scene, celestialSystem);
 
     loadParkCornerStreetLights(scene, {
       parkSize: 150,
@@ -557,11 +558,17 @@ export function initGame() {
         interactionManager.handleInteraction(nearby);
       }
     }
+    
 
     // Event listener untuk debug dan kontrol lampu (sudah benar)
     switch (event.key.toLowerCase()) {
       case "h":
         shadowHelper.visible = !shadowHelper.visible;
+        break;
+      case "p":
+        break
+      case "o":
+
         break;
       case "l":
         const newState = toggleStreetLights();
