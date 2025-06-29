@@ -29,7 +29,7 @@ export class CelestialSystem {
     this.starsTwinkleTime = 0;
 
     // --- Sistem Jam 24 Jam (Fitur Utama dari File 1) ---
-    this.gameHour = 18; // Start at 6 AM
+    this.gameHour = 6; // Start at 6 AM
     this.gameMinute = 0;
     this.minuteStep = 10; // Waktu akan maju per 10 menit game
     this.timeMultiplier = 5; // 1 detik dunia nyata = 5 menit game
