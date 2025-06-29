@@ -5,6 +5,8 @@ import * as THREE from "three";
 let ferrisWheelObject = null;
 let ferrisWheelBoundingBox = null;
 
+let ferrisWheelAction = null;
+
 export function loadFerrisWheel(scene, options = {}) {
   const {
     modelPath = "./ferris_wheel.glb",
@@ -60,6 +62,9 @@ export function loadFerrisWheel(scene, options = {}) {
             `Playing ferris wheel animation: ${clip.name || "Unnamed"}`
           );
           const action = mixer.clipAction(clip);
+
+          ferrisWheelAction = action;
+
           action.setLoop(THREE.LoopRepeat);
           action.clampWhenFinished = false;
           action.timeScale = 0.2; // Slow down animation to 20% of original speed
@@ -116,4 +121,50 @@ export function checkFerrisWheelCollision(playerPosition, playerRadius = 1.5) {
 // Function to get ferris wheel bounding box (for other collision systems)
 export function getFerrisWheelBoundingBox() {
   return ferrisWheelBoundingBox;
+}
+
+export function isLookingAtFerrisWheel(
+  playerPosition,
+  playerDirection,
+  maxDistance = 15
+) {
+  
+  if (!ferrisWheelObject) {
+    return false;
+  }
+  // Create a raycaster from the player's position in the direction they're looking
+  const raycaster = new THREE.Raycaster(
+    playerPosition,
+    playerDirection.normalize()
+  );
+
+  // Get the mascot's bounding sphere to use for intersection tests
+  const mascotBoundingSphere = new THREE.Box3()
+    .setFromObject(ferrisWheelObject)
+    .getBoundingSphere(new THREE.Sphere());
+
+  // Check if the ray intersects with the mascot's bounding sphere
+  const intersectionPoint = new THREE.Vector3();
+  const result = raycaster.ray.intersectSphere(
+    mascotBoundingSphere,
+    intersectionPoint
+  );
+
+  let hasil = false;
+
+  // If there's an intersection and it's within the max distance
+  if (result && playerPosition.distanceTo(intersectionPoint) <= maxDistance) {
+    hasil = true;
+    return true;
+  }
+  console.log(hasil);
+  
+
+  return false;
+}
+
+export function onInteraction() {
+  ferrisWheelAction.timeScale = 0.6;
+  action.reset();
+  action.play();
 }

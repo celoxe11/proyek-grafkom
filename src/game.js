@@ -38,6 +38,7 @@ import {
   resetStreetLightOverride,
 } from "./objects/streetLight.js";
 import {
+  isLookingAtFerrisWheel,
   loadFerrisWheel,
   checkFerrisWheelCollision,
 } from "./objects/ferrisWheel.js";
@@ -525,6 +526,19 @@ export function initGame() {
           );
         }
       }
+    }
+
+    if(event.key.toLowerCase() === "z") {
+      const cameraDirection = new THREE.Vector3();
+      camera.getWorldDirection(cameraDirection);
+      if(isLookingAtFerrisWheel(cameraHolder.position, cameraDirection)) {
+        const ferrisWheel = placedObjects.find(obj => obj.name === "ferris_wheel");
+        if (ferrisWheel && ferrisWheel.onInteraction) {
+          ferrisWheel.onInteraction();
+        }
+      }
+      console.log("interaction failed");
+      
     }
 
     // Tombol 'F' khusus untuk berbicara dengan maskot
