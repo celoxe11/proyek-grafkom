@@ -12,9 +12,9 @@ export class PlayerControls {
     
     // Jump parameters - adjusted for slower jump
     this.isJumping = false;
-    this.jumpHeight = 10; // Maximum height of jump in units
+    this.jumpHeight = 30; // Maximum height of jump in units
     this.jumpSpeed = 0;   // Current vertical velocity
-    this.gravity = 0.15;  // Reduced gravity for slower descent
+    this.gravity = 0.1;  // Reduced gravity for slower descent
     this.initialJumpVelocity = 1.2; // Reduced initial velocity for slower ascent
     this.defaultHeight = 7; // Default player height when not jumping
     
